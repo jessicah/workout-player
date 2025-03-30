@@ -1,0 +1,115 @@
+﻿<div class="video-container">
+    @if (string.IsNullOrEmpty(Metadata.Item.VideoId))
+    {
+        <h2><a href="/novid/@Metadata.Item.Id">@Metadata.Item.Name</a></h2>
+    }
+    else if (Metadata.HasStoryline is false)
+    {
+        <h2><a href="/videoonly/@Metadata.Item.Id">@Metadata.Item.Name</a></h2>
+    }
+    else
+    {
+        <h2><a href="/player/@Metadata.Item.Id">@Metadata.Item.Name</a></h2>
+    }
+
+    <div class="difficulty">
+        <label>NM</label>
+        <ol class="nm">
+            @for (int ix = 1; ix <= Metadata.Nm; ++ix)
+            {
+                <li></li>
+            }
+            @for (int ix = Metadata.Nm; ix < 5; ++ix)
+            {
+                <li class="gray"></li>
+            }
+        </ol>
+        <label>AC</label>
+        <ol class="ac">
+            @for (int ix = 1; ix <= Metadata.Ac; ++ix)
+            {
+                <li></li>
+            }
+            @for (int ix = Metadata.Ac; ix < 5; ++ix)
+            {
+                <li class="gray"></li>
+            }
+        </ol>
+        <label>MAP</label>
+        <ol class="map">
+            @for (int ix = 1; ix <= Metadata.Map; ++ix)
+            {
+                <li></li>
+            }
+            @for (int ix = Metadata.Map; ix < 5; ++ix)
+            {
+                <li class="gray"></li>
+            }
+        </ol>
+        <label>FTP</label>
+        <ol class="ftp">
+            @for (int ix = 1; ix <= Metadata.Ftp; ++ix)
+            {
+                <li></li>
+            }
+            @for (int ix = Metadata.Ftp; ix < 5; ++ix)
+            {
+                <li class="gray"></li>
+            }
+        </ol>
+    </div>
+    <div class="tss">
+        <label>TSS<sup>&reg;</sup></label>
+        <div>@Metadata.Tss</div>
+    </div>
+    <div class="if">
+        <label>IF<sup>&reg;</sup></label>
+        <div>@Metadata.If</div>
+    </div>
+    <div class="duration">
+        <label>DURATION</label>
+        <div>@TimeSpan.FromSeconds(Metadata.Item.Duration ?? 0)</div>
+    </div>
+    @if (string.IsNullOrEmpty(Metadata.Item.Level) is false)
+    {
+        <div class="level">
+            <label>LEVEL</label>
+            <div>@Metadata.Item.Level</div>
+        </div>
+    }
+    <div class="graph">
+        @if (Metadata.Graph is not null)
+        {
+            <svg width="800" height="@Metadata.Graph.Height" viewBox="0 0 800 @Metadata.Graph.Height">
+                <rect width="800" height="@Metadata.Graph.Height" x="0" y="0" fill="none" />
+                <g>
+                    @foreach (var item in Metadata.Graph.PathsScaled(3200))
+                    {
+                        <path d="@item.Fill" fill="@item.Colour" fill-opacity="1" stroke="none" class="@item.Class"></path>
+                    }
+                </g>
+            </svg>
+        }
+    </div>
+    <!--
+        // A possible approach might be a popover? 
+    <div class="description">
+        @foreach (var description in Metadata.Item.Descriptions)
+        {
+            if (description.Title == "Description")
+            {
+                foreach (var paragraph in description.Body.Replace("\x0B \n", null).Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                {
+                    <p>
+                        @paragraph
+                    </p>
+                }
+            }
+        }
+    </div>
+    -->
+</div>
+@code {
+    [Parameter]
+    public Pages.LibraryV2.Metadata Metadata { get; set; } = null!;
+}

@@ -1,0 +1,411 @@
+﻿@page "/videoonly/{content?}"
+@using Blazor.Bluetooth
+@using BluetoothLE.Components.Views
+@using Microsoft.AspNetCore.Html
+@using Dynastream.Fit;
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.Extensions.Caching.Memory
+@using MongoDB.Driver
+@inject IJSRuntime jsRuntime
+@inject IConfiguration Configuration
+@inject IDbContextFactory<Models.AthleteContext> DbFactory
+@inject IHttpClientFactory HttpClientFactory
+@inject ILogger<BLE> Logger
+@inject Utilities.StravaOAuth OAuth
+@inject Utilities.BluetoothHandler BluetoothHandler
+@inject BluetoothLE.Services.SufferService Suffer
+@inject Utilities.IntervalsUploader Intervals
+@implements IAsyncDisposable
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+<PageTitle>BLE</PageTitle>
+
+@if (_timer is null || _timer.Period == Timeout.InfiniteTimeSpan)
+{
+    <button style="left: 4px; top: 4px;" onclick="@BluetoothHandler.ConnectAsync">Connect to BLE</button>
+
+    if (IsAuthenticated)
+    {
+        <button id="strava-upload" onclick="@UploadAsync" style="right: 4px; left: unset; background-color: rgb(215 70 0); color: white; padding-left: 8px; padding-right: 8px; top: 4px"><i class="fa-brands fa-strava"></i></button>
+    }
+}
+
+<div @onclick="@(async e => await TogglePlaybackAsync())">
+    <BlazoredVideo @ref="video" EndedEvent="PlaybackEndedAsync">
+    </BlazoredVideo>
+
+    <div id="workout-display">
+        <div id="elapsed-time">@FormatTimeSpan(elapsedTime)</div>
+        <div id="total-remaining-time">@FormatTimeSpan(workoutRemainingTime)</div>
+        <div id="progress" style="width: @($"{percentComplete:F1}")%"></div>
+    </div>
+</div>
+
+<style type="text/css">
+    #progress {
+    background-color: deepskyblue;
+    }
+    div#workout-display {
+    grid-template-rows: calc(32pt + 16px) 32px;
+    }
+    div#elapsed-time {
+    grid-row: 1;
+    }
+    div#total-remaining-time {
+    grid-row: 1;
+    grid-column: -1;    }
+    div#progress {
+    grid-row: 2;
+    grid-column: 1 / 7;
+    }
+</style>
+
+<script type="text/javascript">
+    console.log("trying to enter fullscreen...");
+    let elem = document.documentElement;
+
+    elem.requestFullscreen({ navigationUI: "hide" })
+    .then(() => { console.log("entered fullscreen") })
+    .catch((err) => { console.log(`failed to enter fullscreen: ${err.message}`) });
+</script>
+
+@code {
+    [Parameter]
+    public string Content { get; set; } = "invalid content id";
+
+    int currentPosition = 0;
+
+    TimeSpan elapsedTime = TimeSpan.Zero;
+    TimeSpan trackRemainingTime = TimeSpan.Zero;
+    TimeSpan workoutRemainingTime = TimeSpan.Zero;
+
+    Blazored.Video.BlazoredVideo video;
+
+    PeriodicTimer? _timer;
+    Task? _timerTask;
+    bool _disposed = false;
+
+    Utilities.FitFileHandler? _fitFileHandler;
+
+    double percentComplete = 0;
+
+    Models.ContentLibrary.Content ContentItem = null!;
+
+    Dynastream.Fit.Sport _sport = Sport.Cycling;
+    Dynastream.Fit.SubSport _subSport = SubSport.IndoorCycling;
+
+    async Task TogglePlaybackAsync()
+    {
+        try
+        {
+            Console.WriteLine("Toggling workout...");
+
+            if (_timer is null)
+            {
+                Logger.LogError("Unable to toggle playback state, have no timer!");
+
+                return;
+            }
+
+            if (_timerTask is null)
+            {
+                _timerTask = UpdateState();
+            }
+
+            if (await video.GetPausedAsync())
+            {
+                duration = TimeSpan.FromSeconds(await video.GetDurationAsync());
+
+                await video.StartPlayback();
+
+                startTime = System.DateTime.UtcNow;
+
+                _timer.Period = TimeSpan.FromMilliseconds(100);
+
+                if (_fitFileHandler is null)
+                {
+                    _fitFileHandler = new(Content, _sport, _subSport);
+                }
+            }
+            else
+            {
+                await video.PausePlayback();
+
+                _timer.Period = Timeout.InfiniteTimeSpan;
+            }
+        } catch (Exception exn)
+        {
+            Logger.LogError($"Unable to toggle playback: {exn.Message}");
+            Logger.LogError($"Stack Trace: {exn.StackTrace}");
+        }
+    }
+
+    private async Task PlaybackEndedAsync(Blazored.Video.Support.VideoState state)
+    {
+        Logger.LogInformation("Playback has ended, closing fit file");
+
+        if (_timer is not null)
+        {
+            _timer.Period = Timeout.InfiniteTimeSpan;
+        }
+
+        CloseFitFile();
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void CloseFitFile()
+    {
+        if (_fitFileHandler is null)
+        {
+            Logger.LogInformation("Have already closed the fit file, aborting");
+
+            return;
+        }
+
+        if (startTime is null) startTime = System.DateTime.UtcNow;
+        if (endTime is null) endTime = System.DateTime.UtcNow;
+
+        var elapsed = (float)(endTime.Value - startTime.Value).TotalSeconds;
+
+        var lastLap = _laps.LastOrDefault();
+
+        if (lastLap is not null)
+        {
+            lastLap.EndLap(System.DateTime.UtcNow);
+
+            int durationMs = (int)(endTime.Value - startTime.Value).TotalMilliseconds;
+
+            _fitFileHandler?.AddLap(lastLap, durationMs);
+        }
+
+        _memoryStream = _fitFileHandler?.Close(startTime.Value, endTime.Value, 0, Models.Lap.TotalSummary(_laps));
+
+        startTime = null;
+        endTime = null;
+
+        _fitFileHandler?.Dispose();
+        _fitFileHandler = null;
+    }
+
+    private MemoryStream? _memoryStream;
+
+    private System.DateTime? startTime = null;
+    private System.DateTime? endTime = null;
+
+    private bool IsAuthenticated { get; set; } = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // TODO: support multiple users, for now, just hard-coding `1`.
+        try
+        {
+            IsAuthenticated = await OAuth.HasAccessToken(1);
+        }
+        catch { }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        ContentItem = await Suffer.ContentCollection.Find(item => item.Id == Content).SingleAsync();
+
+        switch (ContentItem.WorkoutType)
+        {
+            case "Yoga":
+                {
+                    _sport = Sport.Training;
+                    _subSport = SubSport.Yoga;
+                    break;
+                }
+            case "Strength":
+                {
+                    _sport = Sport.Training;
+                    _subSport = SubSport.StrengthTraining;
+                    break;
+                }
+        }
+
+        try
+        {
+            await video.SetSrcAsync($"/videos/{ContentItem.VideoId}.mp4");
+        } catch (Exception setSrcException)
+        {
+            Logger.LogError($"Unable to set source: {setSrcException.Message}");
+            Logger.LogError($"@video = {video}");
+
+            throw setSrcException;
+        }
+
+        _timer = new(Timeout.InfiniteTimeSpan);
+    }
+
+    private System.DateTime last = System.DateTime.Now;
+
+    private long lastTick = System.DateTime.UtcNow.Ticks;
+
+    private System.TimeOnly lastUpdate = TimeOnly.FromDateTime(System.DateTime.UtcNow);
+    private TimeSpan duration = TimeSpan.Zero;
+
+    private int lastLength = 0;
+
+    private bool writtenStartEvent = false;
+
+    private List<Models.Lap> _laps = [];
+
+    private async Task UpdateState()
+    {
+        try
+        {
+            while (await _timer!.WaitForNextTickAsync())
+            {
+                if (_disposed)
+                    return;
+
+                try
+                {
+                    var videoTime = await video.GetCurrentTimeAsync();
+                    currentPosition = (int)(videoTime * 1000);
+
+                    try
+                    {
+                        // GetDurationAsync() returns a non-integer value, throws exception
+                        workoutRemainingTime = TimeSpan.FromSeconds(await video.GetDurationAsync() - (int)videoTime);
+                        // int workoutTime = workoutJson.SelectMany(root => root.Tracks.Select(track => track.Size)).Sum();
+
+                        // if (workoutTime > currentPosition)
+                        // {
+                        //     workoutRemainingTime = TimeSpan.FromMilliseconds(workoutTime - currentPosition);
+                        // }
+                        // else
+                        // {
+                        //     workoutRemainingTime = TimeSpan.Zero;
+                        // }
+
+                        elapsedTime = TimeSpan.FromMilliseconds(currentPosition);
+
+                        percentComplete = (elapsedTime.TotalMilliseconds / duration.TotalMilliseconds) * 100;
+                    } catch (Exception exn)
+                    {
+                        Logger.LogError($"Error trying to update timers: {exn.Message}");
+                        Logger.LogError($"Stack trace: {exn.StackTrace}");
+                    }
+
+                    var currentUpdate = TimeOnly.FromDateTime(System.DateTime.UtcNow);
+
+                    int index = (int)Math.Floor(videoTime);
+
+                    if (heartRateBuilder is not null)
+                    {
+                        heartRateBuilder.Data[index] = actualHeartRate ?? 0;
+                        heartRateBuilder.Length = index + 1;
+                    }
+
+                    if (index == 0 && !writtenStartEvent)
+                    {
+                        writtenStartEvent = true;
+                        startTime = System.DateTime.UtcNow;
+
+                        _fitFileHandler?.AddStart(startTime.Value);
+                        _fitFileHandler?.AddRecord(startTime.Value, actualHeartRate ?? 0, 0, 0);
+
+                    }
+
+                    if (index > lastLength)
+                    {
+                        lastLength = index;
+                        lastUpdate = currentUpdate.Add(TimeSpan.FromMilliseconds(-100));
+                        lastTick = System.DateTime.UtcNow.Ticks;
+
+                        _fitFileHandler?.AddRecord(System.DateTime.UtcNow, actualHeartRate ?? 0, 0, 0);
+                    }
+
+                    await InvokeAsync(StateHasChanged);
+                } catch (Exception innerExn)
+                {
+                    Logger.LogError($"Derp: {innerExn.Message}");
+                }
+            }
+        }
+        catch (OperationCanceledException exn)
+        {
+            // can we dispose of the timer here?
+            Console.WriteLine($"update state has failed: {exn.Message}");
+        }
+    }
+
+    string FormatTimeSpan(TimeSpan timeSpan)
+    {
+        if (timeSpan.Hours > 0)
+        {
+            return timeSpan.ToString(@"h':'mm':'ss");
+        }
+        else
+        {
+            return timeSpan.ToString(@"m':'ss");
+        }
+    }
+
+    // heartRateBuilder = new GraphBuilder<int>(new ValueTransformer("rgb(255 0 0)"), workoutValues.Count, 100, 200)
+    //     {
+    //         CreateFill = false,
+    //         JoinBlocks = false
+    //     };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_disposed)
+            return;
+
+        _disposed = true;
+
+        CloseFitFile();
+
+        await BluetoothHandler.ForgetAsync();
+
+        if (_timerTask is not null)
+        {
+            await _timerTask;
+            _timerTask = null;
+        }
+
+        _timer?.Dispose();
+        _timer = null;
+    }
+
+    public async Task UploadAsync()
+    {
+        CloseFitFile();
+
+        if (_memoryStream is null)
+        {
+            Logger.LogError($"Nothing to upload, _memoryStream is null!");
+
+            return;
+        }
+
+        string externalId = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(8));
+        string sportType = ContentItem.WorkoutType switch
+        {
+            "Yoga" => "Yoga",
+            "Strength" => "Weight Training",
+            _ => "Ride"
+        };
+        string name = ContentItem.WorkoutType switch
+        {
+            "Yoga" => $"Yoga with Abi: {ContentItem.Name}",
+            "Strength" => $"Suffer Strength: {ContentItem.Name}",
+            "Cycling" => $"The Sufferfest: {ContentItem.Name}",
+            _ => $"Indoor Workout: {ContentItem.Name}"
+        };
+
+        await Intervals.UploadAsync(1, name, _memoryStream, externalId);
+        await OAuth.UploadAsync(1, name, _memoryStream, externalId, sportType);
+    }
+
+    private GraphBuilder<int>? heartRateBuilder = null;
+
+    int? actualHeartRate = null;
+}

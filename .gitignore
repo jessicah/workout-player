@@ -1,0 +1,9 @@
+.vs/**
+BluetoothLE/bin/**
+BluetoothLE/obj/**
+FixTimers/bin/**
+FixTimers/obj/**
+Migrations/bin/**
+Migrations/obj/**
+Win32/bin/**
+Win32/obj/**

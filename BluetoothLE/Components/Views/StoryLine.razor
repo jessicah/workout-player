@@ -1,0 +1,54 @@
+﻿@using BluetoothLE.Models.ContentLibrary
+
+@if (Parameters is StorylineParameters parameters)
+{
+    <div style="color: @FormatColour(parameters.TextColor); background-color: @FormatColour(parameters.TextBackgroundColor); border-color: black; border-width: 2px; border-style: @BorderStyle(parameters.TextBackgroundColor)">
+        @foreach (var line in parameters.Text.En.Split('\n'))
+        {
+            @line
+
+            <br />
+        }
+    </div>
+    @if (parameters.SubText is SubText subText && subText.En is string lines && lines.Length > 0)
+    {
+        <div class="sub-text" style="color: @FormatColour(parameters.SubTextColor); background-color: @FormatColour(parameters.SubTextBackgroundColor);">
+            @foreach (var line in parameters.SubText.En.Split('\n'))
+            {
+                @line
+
+                <br />
+            }
+        </div>
+    }
+}
+
+@code {
+    [Parameter]
+    public StorylineParameters? Parameters { get; set; }
+
+    string FormatColour(IReadOnlyList<double> components)
+    {
+        int Rgb(double percentage) => (int)(255.0 * percentage);
+
+        // some have five components... weird shit :p
+        if (components.Count > 3)
+        {
+            return $"rgb({Rgb(components[0])} {Rgb(components[1])} {Rgb(components[2])} / {(int)(components[3] * 100)}%)";
+        }
+        else
+        {
+            return $"rgb({Rgb(components[0])} {Rgb(components[1])} {Rgb(components[2])})";
+        }
+    }
+
+    string BorderStyle(IReadOnlyList<double> components)
+    {
+        if (components.Count == 4 && components[3] > 0)
+        {
+            return "solid";
+        }
+
+        return "none";
+    }
+}

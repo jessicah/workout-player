@@ -1,0 +1,27 @@
+﻿@page "/token-exchange"
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.Extensions.Caching.Memory
+@inject ILogger<TokenExchange> Logger
+@inject NavigationManager Navigation
+@inject IMemoryCache MemoryCache
+@inject IDbContextFactory<Models.AthleteContext> DbFactory
+@inject Utilities.StravaOAuth OAuth
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+@code {
+    [SupplyParameterFromQuery]
+    private string? State { get; set; }
+
+    [SupplyParameterFromQuery]
+    private string? Code { get; set; }
+
+    [SupplyParameterFromQuery]
+    private string? Scope { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await OAuth.Authorize(1, Scope ?? string.Empty, Code ?? string.Empty, State ?? string.Empty);
+        
+        Navigation.NavigateTo("/");
+    }
+}

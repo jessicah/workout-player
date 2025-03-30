@@ -1,0 +1,97 @@
+﻿@page "/save"
+@inject IJSRuntime JSRuntime
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+
+<Blazored.Video.BlazoredVideo>
+    <source src="/videos/Igniter.mkv" />
+</Blazored.Video.BlazoredVideo>
+
+<h3>Save</h3>
+
+<dialog>
+    <form method="dialog">
+    <h1>Save Activity</h1>
+    @if (_uploading)
+        {
+            <p>Your activity is being uploaded...</p>
+        }
+        else
+        {
+        <p>
+        Your activity has completed! Would you like to upload to Strava?
+    </p>
+        }
+        <div style="display: @(_uploading ? "none" : "unset")">
+    <p style="display:flex">
+    <label>Activity Name:</label><input type="text" @bind="ActivityName"/>
+        </p>
+        <p style="display: flex; flex-direction: row-reverse">
+    <button id="upload" onclick="@UploadAsync">Upload</button>
+    <button id="discard" value="discard">Cancel</button>
+        </p>
+        </div>
+    </form>
+</dialog>
+
+<button style="position:absolute">Save Activity</button>
+
+<style type="text/css">
+    dialog {
+        background-color: darkred;
+        color: white;
+    }
+    label {
+        position: relative;
+        bottom: -2px;
+        margin-right: 0.5em;
+    }
+    input {
+        flex-grow: 1;
+    }
+    button {
+        position: unset;
+        background-color: white;
+    }
+    button#save {
+        position:absolute;
+    }
+</style>
+
+<script type="text/javascript">
+    const dialog = document.querySelector('dialog');
+    const showButton = document.querySelector('dialog + button');
+    const closeButton = document.querySelector('#discard');
+    const uploadButton = document.querySelector('#upload');
+
+    showButton.addEventListener('click', () => dialog.showModal());
+    closeButton.addEventListener('click', () => dialog.close());
+    uploadButton.addEventListener('click', (event) => event.preventDefault());
+
+    function closeDialog()
+    {
+        dialog.close();
+    }
+</script>
+
+@code {
+    private bool _uploading = false;
+
+    public string ActivityName { get; set; } = "The Sufferfest: Violator";
+
+    public async Task UploadAsync()
+    {
+        Console.WriteLine($"Uploading async... {ActivityName}");
+
+        _uploading = true;
+
+        await InvokeAsync(StateHasChanged);
+
+        await Task.Delay(5000);
+
+        await JSRuntime.InvokeVoidAsync("closeDialog");
+
+        _uploading = false;
+
+        await InvokeAsync(StateHasChanged);
+    }
+}

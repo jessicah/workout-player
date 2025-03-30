@@ -1,0 +1,62 @@
+﻿@using BluetoothLE.Models.ContentLibrary
+@if (_haveUpcomingChange && _upcomingTarget != CurrentTarget)
+{
+    if (_upcomingTarget > CurrentTarget)
+    {
+        <div class="upcoming-value-percent increase" style="width: @(_percentRemaining)%"></div>
+        <div class="upcoming-value" style="width: @(100 - _percentRemaining)%; left: @(_percentRemaining)%; position: relative; padding-right: 0 !important"></div>
+        <div class="upcoming-value" style="z-index: 10; background-color: unset">@_upcomingTarget</div>
+    }
+    else
+    {
+        <div class="upcoming-value-percent decrease" style="width: @(_percentRemaining)%"></div>
+        <div class="upcoming-value" style="width: @(100 - _percentRemaining)%; left: @(_percentRemaining)%; position: relative; padding-right: 0 !important"></div>
+        <div class="upcoming-value" style="z-index: 10; background-color: unset">@_upcomingTarget</div>
+    }
+}
+else
+{
+    <div class="upcoming-value"></div>
+}
+
+@code {
+    [Parameter]
+    public int CurrentTarget { get; set; } = 0;
+
+    [Parameter]
+    public Object<WorkoutParameters>? Parameters { get; set; }
+
+    [Parameter]
+    public WorkoutParameters? UpcomingParameters { get; set; }
+
+    [Parameter]
+    public int CurrentPosition { get; set; }
+
+    [Parameter]
+    public Func<WorkoutParameters, int>? GetUpcoming { get; set; }
+
+    private int _percentRemaining = 0;
+    private bool _haveUpcomingChange = false;
+    private int _upcomingTarget = 0;
+
+    protected override void OnParametersSet()
+    {
+        if (Parameters is not null && UpcomingParameters is not null)
+        {
+            _haveUpcomingChange = true;
+
+            double duration = Parameters.Size + Parameters.Position;
+            double remaining = duration - CurrentPosition;
+
+            _percentRemaining = (int)Math.Ceiling((remaining / Parameters.Size) * 100);
+
+            _upcomingTarget = GetUpcoming?.Invoke(UpcomingParameters) ?? 0;
+        }
+        else
+        {
+            _haveUpcomingChange = false;
+
+            _upcomingTarget = CurrentTarget;
+        }
+    }
+}

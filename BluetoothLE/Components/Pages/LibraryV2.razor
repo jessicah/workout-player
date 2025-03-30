@@ -1,0 +1,320 @@
+﻿@page "/"
+@using System.Text.Json
+@using BluetoothLE.Models.ContentLibrary
+@using BluetoothLE.Components.Views
+@using MongoDB.Driver
+@using System.Diagnostics
+@inject IConfiguration Configuration
+@inject Utilities.StravaOAuth OAuth
+@inject ILogger<LibraryV2> Logger
+@inject IDbContextFactory<Models.AthleteContext> DbFactory
+@inject BluetoothLE.Services.SufferService Suffer
+
+<h1>Update 4DP Profile</h1>
+
+<p>
+    <a href="/stats/details/1">> Current 4DP Settings</a>
+</p>
+
+<h1>Video Library</h1>
+
+<p><a href="#sufferfest">Sufferfest</a> | <a href="#yoga">Yoga</a> | <a href="#strength">Strength</a> | <a href="#novids">NoVids</a></p>
+
+<div id="library-container">
+    <h1 id="sufferfest">Sufferfest</h1>
+    @foreach (var metadata in Sufferfest)
+    {
+        <ContentDetail Metadata="metadata"></ContentDetail>
+    }
+    @foreach (var metadata in OtherSufferfest)
+    {
+        <ContentDetail Metadata="metadata"></ContentDetail>
+    }
+    <h1 id="yoga">Yoga</h1>
+    @foreach (var metadata in Yoga)
+    {
+        <ContentDetail Metadata="metadata"></ContentDetail>
+    }
+    <h1 id="strength">Strength</h1>
+    @foreach (var metadata in Strength)
+    {
+        <ContentDetail Metadata="metadata"></ContentDetail>
+    }
+    <h1 id="novids">NoVids</h1>
+    @foreach (var metadata in NoVid)
+    {
+        <ContentDetail Metadata="metadata"></ContentDetail>
+    }
+</div>
+
+<style type="text/css">
+    html {
+    overflow: unset;
+    }
+
+    ol {
+    display: inline-block;
+    padding-inline-start: 0;
+    }
+
+    ol > li {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 6px;
+    }
+    .nm > li {
+    background-color: hotpink;
+    }
+    .ac > li {
+    background-color:darkorange;
+    }
+    .map > li {
+    background-color: goldenrod;
+    }
+    .ftp > li {
+    background-color: steelblue;
+    }
+
+    .nm > li.gray, .ac > li.gray, .map > li.gray, .ftp > li.gray {
+    background-color: rgb(100 100 100);
+    }
+
+    body {
+    color: white;
+    }
+
+    main {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    }
+
+    main > * {
+    grid-column: 2;
+    }
+
+    #library-container {
+    display: grid;
+    grid-template-columns: 24px 64px 64px 64px 64px 6ch 5ch 9ch auto auto;
+    }
+
+    .video-container {
+    display: grid;
+    grid-template-columns: subgrid;
+    grid-column: 1 / 11;
+    border-bottom: 1px solid white;
+    padding: 8px;
+    border: 1px solid darkred;
+    background-color: rgb(10 10 10);
+    margin: 1em;
+    }
+
+    .video-container > h2 {
+    grid-column: 1 / 9;
+    grid-row: 1;
+    }
+
+    .video-container > div.difficulty {
+    grid-column: 2 / 6;
+    grid-row: 2 / 3;
+    display: grid;
+    grid-template-columns: subgrid;
+    }
+
+    .video-container > div.tss {
+    grid-column: 6;
+    grid-row: 2 / 3;
+    }
+
+    .video-container > div.if {
+    grid-column: 7;
+    grid-row: 2 / 3;
+    }
+
+    .video-container > div.level
+    {
+        grid-column: 9;
+        grid-row: 2 / 3;
+    }
+
+    .video-container > div.duration
+    {
+        grid-column: 8;
+        grid-row: 2 / 3;
+    }
+
+    div.duration > * {
+        display: block;
+        text-align: right;
+        padding-right: 1ch;
+    }
+
+    .video-container > div.graph {
+    grid-column: 1 / 11;
+    grid-row: 4
+    }
+
+    .video-container label {
+    grid-row: 2;
+    }
+
+    .video-container ol {
+    grid-row: 3;
+    }
+
+    a {
+    color: white;
+    text-decoration: none;
+    }
+
+    a:hover {
+    color: darkred;
+    }
+</style>
+
+@code {
+    public record class Metadata(Models.ContentLibrary.Content Item, bool HasStoryline, int Nm, int Ac, int Map, int Ftp, int Tss, double If, GraphBuilder<WorkoutItem>? Graph);
+
+    List<Metadata> videos = [];
+
+    private bool IsAuthenticated { get; set; } = false;
+
+    List<Metadata> Sufferfest = [];
+    List<Metadata> OtherSufferfest = [];
+    List<Metadata> Yoga = [];
+    List<Metadata> Strength = [];
+    List<Metadata> NoVid = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.WhenAll([
+            FetchChannelContentAsync("MvDmhsvEBR", "Cycling", Sufferfest),
+            FetchChannelContentAsync("tXmnHtjJAK", "Cycling", OtherSufferfest),
+            FetchChannelContentAsync("tXmnHtjJAK", "Yoga", Yoga),
+            FetchChannelContentAsync("tXmnHtjJAK", "Strength", Strength),
+            FetchChannelContentAsync("Wmrk3N9mqG", "Cycling", NoVid)
+        ]);
+    }
+
+    private async Task FetchChannelContentAsync(string channel, string workoutType, List<Metadata> metadata)
+    {
+        using var cursor = await Suffer.GetContentsByChannelAsyncCursor(channel, workoutType);
+
+        while (await cursor.MoveNextAsync())
+        {
+            foreach (var current in cursor.Current)
+            {
+                metadata.Add(Create(current));
+            }
+        }
+    }
+
+    private Metadata Create(Content contentItem)
+    {
+        GraphBuilder<WorkoutItem>? graphBuilder = null;
+
+        if (contentItem.Workout is IReadOnlyList<WorkoutTrigger> triggers && triggers.Count > 0)
+        {
+            graphBuilder = BuildWorkoutGraph(triggers);
+        }
+
+        bool hasStoryLine = contentItem.Storylines is IReadOnlyList<Timeline> videoTriggers && videoTriggers.Count > 0;
+
+        return new(contentItem,
+            hasStoryLine,
+            contentItem.Metrics.Ratings?.Nm ?? 1,
+            contentItem.Metrics.Ratings?.Ac ?? 1,
+            contentItem.Metrics.Ratings?.Map ?? 1,
+            contentItem.Metrics.Ratings?.Ftp ?? 1,
+            contentItem.Metrics.Tss ?? 0,
+            contentItem.Metrics.IntensityFactor ?? 0,
+            graphBuilder);
+    }
+
+    private Models.Stats? AthleteStats { get; set; }
+
+    private WorkoutItem FromParameters(Models.ContentLibrary.WorkoutParameters parameters)
+    {
+        if (AthleteStats is null)
+        {
+            using var context = DbFactory.CreateDbContext();
+
+            try
+            {
+                AthleteStats = context.Stats.Where(item => item.Id == 1).SingleOrDefault();
+            }
+            catch (Exception exn)
+            {
+                Logger.LogError($"Unable to load athlete stats: {exn.Message}");
+
+                return new(BluetoothLE.Target.FTP, 0);
+            }
+        }
+
+        if (AthleteStats is null || parameters is null)
+            return new(BluetoothLE.Target.FTP, 0);
+
+        if (parameters.Nm is Models.ContentLibrary.TypedValue<double> nm)
+        {
+            return new(BluetoothLE.Target.NM, (ushort)(AthleteStats.Nm * nm.Value));
+        }
+        else if (parameters.Ac is Models.ContentLibrary.TypedValue<double> ac)
+        {
+            return new(BluetoothLE.Target.AC, (ushort)(AthleteStats.Ac * ac.Value));
+        }
+        else if (parameters.Map is Models.ContentLibrary.TypedValue<double> map)
+        {
+            return new(BluetoothLE.Target.MAP, (ushort)(AthleteStats.Map * map.Value));
+        }
+        else if (parameters.Ftp is Models.ContentLibrary.TypedValue<double> ftp)
+        {
+            return new(BluetoothLE.Target.FTP, (ushort)(AthleteStats.Ftp * ftp.Value));
+        }
+        else throw new ArgumentException("Don't have a power target to show");
+    }
+
+    private GraphBuilder<WorkoutItem> BuildWorkoutGraph(IReadOnlyList<Models.ContentLibrary.WorkoutTrigger> workout)
+    {
+        List<WorkoutItem> workoutValues = [];
+
+        int trackOffset = 0;
+
+        foreach (var section in workout)
+        {
+            foreach (var track in section.Tracks)
+            {
+                int size = track.Size;
+
+                if (track.SizeType != "time")
+                {
+                    continue;
+                }
+
+                for (int ix = 0; ix < track.Objects.Count; ++ix)
+                {
+                    var obj = track.Objects[ix];
+
+                    if (obj.Type == StringKeys.Targets)
+                    {
+                        for (int iy = 0; iy < (obj.Size / 1000); ++iy)
+                        {
+                            workoutValues.Add(FromParameters(obj.Parameters));
+                        }
+                    }
+                }
+
+                trackOffset += track.Size;
+            }
+        }
+
+        var maxPower = (int)Math.Ceiling((double)workoutValues.MaxBy(value => value.Value).Value / 10) * 10 + 50;
+
+        return new GraphBuilder<WorkoutItem>(new WorkoutItemTransformer(), workoutValues.Count, 100, maxPower)
+            {
+                CreateStroke = false,
+                JoinBlocks = false,
+                Length = workoutValues.Count,
+                Data = workoutValues.Select(item => new WorkoutItem(item.Target, item.Value)).ToArray()
+            };
+    }
+}

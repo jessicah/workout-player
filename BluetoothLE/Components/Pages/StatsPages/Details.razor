@@ -1,0 +1,53 @@
+﻿@page "/stats/details/{id:int}"
+@using Microsoft.EntityFrameworkCore
+@using BluetoothLE.Models
+@inject IDbContextFactory<BluetoothLE.Models.AthleteContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Details</PageTitle>
+
+<h1>Details</h1>
+
+<div>
+    <h2>Stats</h2>
+    <hr />
+    @if (stats is null)
+    {
+        <p><em>Loading...</em></p>
+    }
+    else {
+        <dl class="row">
+            <dt class="col-sm-2">Nm</dt>
+            <dd class="col-sm-10">@stats.Nm</dd>
+            <dt class="col-sm-2">Ac</dt>
+            <dd class="col-sm-10">@stats.Ac</dd>
+            <dt class="col-sm-2">Map</dt>
+            <dd class="col-sm-10">@stats.Map</dd>
+            <dt class="col-sm-2">Ftp</dt>
+            <dd class="col-sm-10">@stats.Ftp</dd>
+        </dl>
+        <div>
+            <a href="@($"/stats/edit?id={stats.Id}")">Edit</a> |
+            <a href="@($"/stats")">Back to List</a>
+        </div>
+    }
+</div>
+
+@code {
+    private Stats? stats;
+
+    //[SupplyParameterFromQuery]
+    [Parameter]
+    public int Id { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        using var context = DbFactory.CreateDbContext();
+        stats = await context.Stats.FirstOrDefaultAsync(m => m.Id == Id);
+
+        if (stats is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+        }
+    }
+}

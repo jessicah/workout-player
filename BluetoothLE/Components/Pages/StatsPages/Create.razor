@@ -1,0 +1,59 @@
+﻿@page "/stats/create"
+@using Microsoft.EntityFrameworkCore
+@using BluetoothLE.Models
+@inject IDbContextFactory<BluetoothLE.Models.AthleteContext> DbFactory
+@inject NavigationManager NavigationManager
+
+<PageTitle>Create</PageTitle>
+
+<h1>Create</h1>
+
+<h2>Stats</h2>
+<hr />
+<div class="row">
+    <div class="col-md-4">
+        <EditForm method="post" Model="Stats" OnValidSubmit="AddStats" FormName="create" Enhance>
+            <DataAnnotationsValidator />
+            <ValidationSummary class="text-danger" role="alert"/>
+            <div class="mb-3">
+                <label for="nm" class="form-label">Nm:</label> 
+                <InputNumber id="nm" @bind-Value="Stats.Nm" class="form-control" /> 
+                <ValidationMessage For="() => Stats.Nm" class="text-danger" /> 
+            </div>        
+            <div class="mb-3">
+                <label for="ac" class="form-label">Ac:</label> 
+                <InputNumber id="ac" @bind-Value="Stats.Ac" class="form-control" /> 
+                <ValidationMessage For="() => Stats.Ac" class="text-danger" /> 
+            </div>        
+            <div class="mb-3">
+                <label for="map" class="form-label">Map:</label> 
+                <InputNumber id="map" @bind-Value="Stats.Map" class="form-control" /> 
+                <ValidationMessage For="() => Stats.Map" class="text-danger" /> 
+            </div>        
+            <div class="mb-3">
+                <label for="ftp" class="form-label">Ftp:</label> 
+                <InputNumber id="ftp" @bind-Value="Stats.Ftp" class="form-control" /> 
+                <ValidationMessage For="() => Stats.Ftp" class="text-danger" /> 
+            </div>        
+            <button type="submit" class="btn btn-primary">Create</button>
+        </EditForm>
+    </div>
+</div>
+
+<div>
+    <a href="/stats">Back to List</a>
+</div>
+
+@code {
+    [SupplyParameterFromForm]
+    private Stats Stats { get; set; } = new();
+
+    // To protect from overposting attacks, see https://learn.microsoft.com/aspnet/core/blazor/forms/#mitigate-overposting-attacks.
+    private async Task AddStats()
+    {
+        using var context = DbFactory.CreateDbContext();
+        context.Stats.Add(Stats);
+        await context.SaveChangesAsync();
+        NavigationManager.NavigateTo("/stats");
+    }
+}

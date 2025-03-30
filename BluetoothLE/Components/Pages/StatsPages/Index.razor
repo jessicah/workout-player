@@ -1,0 +1,38 @@
+﻿@page "/stats"
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.QuickGrid
+@using BluetoothLE.Models
+@implements IAsyncDisposable
+@inject IDbContextFactory<BluetoothLE.Models.AthleteContext> DbFactory
+
+<PageTitle>Index</PageTitle>
+
+<h1>Index</h1>
+
+<p>
+    <a href="stats/create">Create New</a>
+</p>
+
+<QuickGrid Class="table" Items="context.Stats">
+    <PropertyColumn Property="stats => stats.Nm" />
+    <PropertyColumn Property="stats => stats.Ac" />
+    <PropertyColumn Property="stats => stats.Map" />
+    <PropertyColumn Property="stats => stats.Ftp" />
+
+    <TemplateColumn Context="stats">
+        <a href="@($"stats/edit?id={stats.Id}")">Edit</a> |
+        <a href="@($"stats/details/{stats.Id}")">Details</a> |
+        <a href="@($"stats/delete?id={stats.Id}")">Delete</a>
+    </TemplateColumn>
+</QuickGrid>
+
+@code {
+    private AthleteContext context = default!;
+
+    protected override void OnInitialized()
+    {
+        context = DbFactory.CreateDbContext();
+    }
+
+    public async ValueTask DisposeAsync() => await context.DisposeAsync();
+}

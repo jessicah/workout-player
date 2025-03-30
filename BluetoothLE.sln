@@ -1,0 +1,49 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.11.35219.272
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BluetoothLE", "BluetoothLE\BluetoothLE.csproj", "{3EA63529-57F5-4CDC-86C9-447BBFCA0A3C}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Migrations", "Migrations\Migrations.csproj", "{5CAA7042-1B1F-4515-B215-E494C6FE6C11}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Blazored.Video", "BlazoredVideo\src\Blazored.Video\Blazored.Video.csproj", "{A91DBFD8-0723-42F8-8AE6-069CDC40641A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Win32", "Win32\Win32.csproj", "{DE3704ED-FAAC-43CA-8865-3D806D37BEB4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FixTimers", "FixTimers\FixTimers.csproj", "{638B6B2B-2A47-481B-AA3E-6B178D5CA99E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{3EA63529-57F5-4CDC-86C9-447BBFCA0A3C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3EA63529-57F5-4CDC-86C9-447BBFCA0A3C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3EA63529-57F5-4CDC-86C9-447BBFCA0A3C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3EA63529-57F5-4CDC-86C9-447BBFCA0A3C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5CAA7042-1B1F-4515-B215-E494C6FE6C11}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5CAA7042-1B1F-4515-B215-E494C6FE6C11}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5CAA7042-1B1F-4515-B215-E494C6FE6C11}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5CAA7042-1B1F-4515-B215-E494C6FE6C11}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A91DBFD8-0723-42F8-8AE6-069CDC40641A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A91DBFD8-0723-42F8-8AE6-069CDC40641A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A91DBFD8-0723-42F8-8AE6-069CDC40641A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A91DBFD8-0723-42F8-8AE6-069CDC40641A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DE3704ED-FAAC-43CA-8865-3D806D37BEB4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DE3704ED-FAAC-43CA-8865-3D806D37BEB4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DE3704ED-FAAC-43CA-8865-3D806D37BEB4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DE3704ED-FAAC-43CA-8865-3D806D37BEB4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{638B6B2B-2A47-481B-AA3E-6B178D5CA99E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{638B6B2B-2A47-481B-AA3E-6B178D5CA99E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{638B6B2B-2A47-481B-AA3E-6B178D5CA99E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{638B6B2B-2A47-481B-AA3E-6B178D5CA99E}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {FBF43DCD-4DB6-456F-9859-21E1BEEA4CF0}
+	EndGlobalSection
+EndGlobal
