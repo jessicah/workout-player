@@ -61,7 +61,7 @@
 
 @if (_timer is null || _timer.Period == Timeout.InfiniteTimeSpan)
 {
-    <button style="left: 4px; top: 4px;" onclick="@BluetoothHandler.ConnectAsync">Connect to BLE</button>
+    <button style="left: 4px; top: 4px; z-index:20000" onclick="@BluetoothHandler.ConnectAsync">Connect to BLE</button>
 
     if (IsAuthenticated)
     {
@@ -138,11 +138,47 @@
                 <div id="graph" style="position:relative">
                     @if (workoutBuilder is not null)
                     {
+                        /* Also, when paused, want to display just the normal graph, so we can seek back and forth, hiding the amalgamated SVGs
+                            and then show the amalgamated SVGs when resuming... and how do we calculate the seek bar position?
+
+                            Is it just "total timer time" from the TimelineController? It feels like it should be, but when pausing, it should
+                            be where it is in the full workout...
+
+                            Hmm....
+                         */
+                        int AbsoluteOffset = 0;
+                        int Offset = 0;
+                        int Width = 0;
+
                         <input type="range" id="seek-bar" disabled="@(PlaybackPlaying)" @bind="SeekBarPosition" @bind:after="ChangePositionAsync" min="0" max="@workoutBuilder.Width" style="width:@(workoutBuilder.Width / 4)px; position: relative; z-index: 1000"/>
-                        <svg style="position: absolute; top: 0; left: 0" width="@workoutBuilder.Width" height="@workoutBuilder.Height" viewBox="0 0 @workoutBuilder.Width @workoutBuilder.Height">
-                            <rect width="@workoutBuilder.Width" height="@workoutBuilder.Height" x="0" y="0" fill="none"/>
+
+                        @foreach (var chunk in _timelineController.TimelineChunks)
+                        {
+                            (Offset, Width) = chunk.GetOffsetAndLength(workoutBuilder.Width);
+
+                            Width /= 4;
+
+                            <svg style="position: absolute; top: 0; left: @AbsoluteOffset" width="@Width" height="@workoutBuilder.Height" viewBox="0 0 @Width @workoutBuilder.Height">
+                                <rect width="@Width" height="@workoutBuilder.Height" x="0" y="0" fill="cyan" />
+                                <g>
+                                    @foreach (var item in workoutBuilder.Paths(chunk, true))
+                                    {
+                                        <path d="@item.Fill" fill="@item.Colour" fill-opacity="1" stroke="none" class="@item.Class"></path>
+                                    }
+                                </g>
+                            </svg>
+
+                            AbsoluteOffset += Width;
+                        }
+
+                        (Offset, Width) = _timelineController.CurrentChunk.GetOffsetAndLength(workoutBuilder.Width);
+
+                        Width /= 4;
+
+                        <svg style="position: absolute; top: 0; left: @AbsoluteOffset" width="@Width" height="@workoutBuilder.Height" viewBox="0 0 @Width @workoutBuilder.Height">
+                            <rect width="@Width" height="@workoutBuilder.Height" x="0" y="0" fill="yellow"/>
                             <g>
-                                @foreach (var item in workoutBuilder.Paths())
+                                @foreach (var item in workoutBuilder.Paths(_timelineController.CurrentChunk, true))
                                 {
                                     <path d="@item.Fill" fill="@item.Colour" fill-opacity="1" stroke="none" class="@item.Class"></path>
                                 }
@@ -406,22 +442,13 @@
         }
 
         _timelineController.Stop();
+        var times = _timelineController.Stop();
 
-        var lastLap = _laps.LastOrDefault();
+        _fitFileHandler?.AddLap(System.DateTime.UtcNow, times.LapElapsedTime, times.LapTotalTime);
 
-        if (lastLap is not null)
-        {
-            lastLap.EndLap(_timelineController.EndedAt.Value);
-
-            int durationMs = _lastTrack?.Size ?? 0;
-
-            _fitFileHandler?.AddLap(lastLap, durationMs);
-        }
-
-        _memoryStream = _fitFileHandler?.Close(_timelineController.EndedAt.Value - _timelineController.ElapsedTime,
+        _memoryStream = _fitFileHandler?.Close(_timelineController.StartedAt.Value,
             _timelineController.EndedAt.Value,
-            _timelineController.TotalTime.TotalSeconds,
-            Models.Lap.TotalSummary(_laps));
+            _timelineController.TotalTime.TotalSeconds);
 
         _fitFileHandler?.Dispose();
         _fitFileHandler = null;
@@ -524,51 +551,21 @@
 
         _timelineController.OnIndexChanged += (int previousIndex, int currentIndex, TimelineController.TimerState timerState) =>
         {
-            Console.WriteLine($"Index changed: {previousIndex} => {currentIndex}");
-
-            if (GetCurrentTrack(currentIndex) is (int offset, Track currentTrack) && GetCurrentTrack(previousIndex) is (int prevOffset, Track previousTrack))
-            {
-                if (currentTrack != previousTrack)
-                {
-                    if (_timelineController.LapStartedAt.HasValue)
-                    {
-                        var lapLength = System.DateTime.UtcNow - _timelineController.LapStartedAt.Value;
-
-                        Console.WriteLine($"Previous track elapsed time: {lapLength}");
-                        Console.WriteLine($"Previous track size: {previousTrack.Size}");
-                    }
-
-                    // Starting a new track (lap)
-                    _timelineController.Mark();
-                }
-
-                if (_lastTrack is null || currentTrack != previousTrack)
-                {
-                    // Need to add a lap... what do we need?
-                    var previousLap = _laps.LastOrDefault();
-
-                    if (previousLap is not null)
-                    {
-                        previousLap.EndLap(System.DateTime.UtcNow);
-
-                        // Yeah, see this doesn't really work...
-                        int durationMs = previousTrack.Size;
-
-                        _fitFileHandler?.AddLap(previousLap, durationMs);
-                    }
-
-                    // I don't like this... it should go into the FIT file handler...
-                    _laps.Add(new Models.Lap(System.DateTime.UtcNow, currentTrack.Size / 1000));
-
-                    _lastTrack = currentTrack;
-
-                    _laps.Last().Add(actualHeartRate ?? 0, actualCadence ?? 0, actualPower ?? 0);
-                }
-            }
+            //Console.WriteLine($"Index changed: {previousIndex} => {currentIndex}");
 
             if (timerState == TimelineController.TimerState.Playing)
             {
                 _fitFileHandler?.AddRecord(System.DateTime.UtcNow, actualHeartRate ?? 0, actualCadence ?? 0, actualPower ?? 0);
+            }
+
+            if (GetCurrentTrack(currentIndex * 1000) is (int offset, Track currentTrack) && GetCurrentTrack(previousIndex * 1000) is (int prevOffset, Track previousTrack))
+            {
+                if (currentTrack != previousTrack)
+                {
+                    var lapTimes = _timelineController.MarkLap();
+
+                    _fitFileHandler?.AddLap(System.DateTime.UtcNow, lapTimes.LapElapsedTime, lapTimes.LapTotalTime);
+                }
             }
         };
 
@@ -617,8 +614,6 @@
     }
 
     private int lastLength = 0;
-
-    private List<Models.Lap> _laps = [];
 
     private async Task UpdateState()
     {
@@ -691,6 +686,8 @@
                     int index = (int)Math.Floor(videoTime);
 
                     // use a loop for when rendering is lagging, ensure the graph always has values...
+                    // this is now broken with ability to seek forward/back, so need the absolute index...
+                    // and also xyz.Data[ix] could end up being out of range... hmm
                     if (heartRateBuilder is not null)
                     {
                         for (int ix = lastLength + 1; ix <= index; ++ix)

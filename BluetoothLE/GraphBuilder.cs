@@ -66,6 +66,13 @@ namespace BluetoothLE
             double ScaledValue(int index) => GetScaledValue(Transformer.Value(Data[index]));
 
             var (begin, length) = range.GetOffsetAndLength(Length);
+
+            if (debug)
+            {
+                Console.WriteLine($"Paths: {begin} -- {begin + length}");
+                Console.WriteLine($"Total Length: {Length}");
+                Console.WriteLine($"Range: {range}");
+            }
             
             if (length > Width)
             {
@@ -87,7 +94,7 @@ namespace BluetoothLE
             strokeBuilder.Clear();
 
             //for (int ix = 0; ix < Length; ++ix)
-            for (int ix = begin; ix < length; ++ix)
+            for (int ix = begin; ix < begin + length; ++ix)
             {
                 double previousValue = currentValue;
                 currentValue = ScaledValue(ix);
@@ -95,8 +102,8 @@ namespace BluetoothLE
                 string previousColour = currentColour;
                 currentColour = Colour(ix);
 
-                double startX = (double)ix / ScaleFactor;
-                double endX = (double)(ix + 1) / ScaleFactor;
+                double startX = (double)(ix - begin) / ScaleFactor;
+                double endX = (double)(ix - begin + 1) / ScaleFactor;
 
                 // isStartOfBlock is true when ix == 0, or lastColour != currentColour
                 if (isStartOfBlock)
@@ -163,7 +170,7 @@ namespace BluetoothLE
             {
                 if (CreateFill)
                 {
-                    fillBuilder.Append($"L{(double)(Length) / ScaleFactor},{Height}");
+                    fillBuilder.Append($"L{(double)(length) / ScaleFactor},{Height}");
                 }
 
                 paths.Add(new(fillBuilder.ToString(), strokeBuilder.ToString(), currentColour));

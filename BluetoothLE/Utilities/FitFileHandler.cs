@@ -123,73 +123,28 @@ namespace BluetoothLE.Utilities
             }
         }
 
-        public void AddLap(Models.Lap lap, int trackDurationMs)
+        public void AddLap(DateTime timestamp, TimeSpan elapsedTime, TimeSpan totalTime)
         {
-            if (!_fileStream.CanWrite) return;
-
-            var summary = lap.Summary();
-
-            _lock.Wait();
-
-            Console.WriteLine($"Added lap to FIT file:");
-            Console.WriteLine($"  Timestamp:     {DateTime.UtcNow.ToShortTimeString()}");
-            Console.WriteLine($"  Start Time:    {lap.StartTime.ToShortTimeString()}");
-            Console.WriteLine($"  Total Elapsed: {((lap.FinishTime ?? DateTime.UtcNow) - lap.StartTime).TotalSeconds}");
-            Console.WriteLine($"  Total Timer:   {TimeSpan.FromMilliseconds(trackDurationMs).TotalSeconds}");
-
-            try
-            {
-                _fitEncoder.Write(new LapMesg
-                {
-                    Timestamp = DateTime.UtcNow.ToFit(),
-                    Event = Event.Lap,
-                    EventType = EventType.Stop,
-                    StartTime = lap.StartTime.ToFit(),
-                    TotalElapsedTime = (float)((lap.FinishTime ?? DateTime.UtcNow) - lap.StartTime).TotalSeconds,
-                    TotalTimerTime = (float)TimeSpan.FromMilliseconds(trackDurationMs).TotalSeconds,
-                    AvgHeartRate = (byte)summary.AvgHeartRate,
-                    MaxHeartRate = (byte)summary.MaxHeartRate,
-                    AvgCadence = (byte)summary.AvgCadence,
-                    MaxCadence = (byte)summary.MaxCadence,
-                    AvgPower = (ushort)summary.AvgPower,
-                    MaxPower = (ushort)summary.MaxPower,
-                    LapTrigger = LapTrigger.Time,
-                    Sport = _sport,
-                    SubSport = _subSport
-                });
-            }
-            finally
-            {
-                _lock.Release();
-            }
-
-            ++_numberOfLaps;
-        }
-
-        // Is this better here?
-        private void MarkLap()
-        {
-            var lapEnd = DateTime.UtcNow;
-
             if (!_fileStream.CanWrite) return;
 
             _lock.Wait();
 
             Console.WriteLine($"Added lap to FIT file:");
-            Console.WriteLine($"  Timestamp:     {lapEnd.ToShortTimeString()}");
-            Console.WriteLine($"  Start Time:    {_lapStart.ToShortTimeString()}");
-            Console.WriteLine($"  Total Elapsed: {(lapEnd - _lapStart).TotalSeconds}");
+            Console.WriteLine($"  Timestamp:     {timestamp.ToShortTimeString()}");
+            Console.WriteLine($"  Start Time:    {timestamp.Add(-elapsedTime).ToShortTimeString()}");
+            Console.WriteLine($"  Total Elapsed: {elapsedTime.TotalSeconds}");
+            Console.WriteLine($"  Total Timer: {totalTime.TotalSeconds}");
 
             try
             {
                 _fitEncoder.Write(new LapMesg
                 {
-                    Timestamp = DateTime.UtcNow.ToFit(),
+                    Timestamp = timestamp.ToFit(),
                     Event = Event.Lap,
                     EventType = EventType.Stop,
-                    StartTime = _lapStart.ToFit(),
-                    TotalElapsedTime = (float)(lapEnd - _lapStart).TotalSeconds,
-                    //TotalTimerTime = (float)TimeSpan.FromMilliseconds(trackDurationMs).TotalSeconds,
+                    StartTime = timestamp.Add(-elapsedTime).ToFit(),
+                    TotalElapsedTime = (float)elapsedTime.TotalSeconds,
+                    TotalTimerTime = (float)totalTime.TotalSeconds,
                     AvgHeartRate = (byte)_stats[LapHeartRate].Average,
                     MaxHeartRate = (byte)_stats[LapHeartRate].Maximum,
                     AvgCadence = (byte)_stats[LapCadence].Average,
@@ -309,7 +264,7 @@ namespace BluetoothLE.Utilities
             }
         }
 
-        public MemoryStream Close(DateTime startTime, DateTime finishTime, double totalTimerTime, Models.Lap.LapsSummary totalSummary)
+        public MemoryStream Close(DateTime startTime, DateTime finishTime, double totalTimerTime)
         {
             if (!_fileStream.CanWrite) return new MemoryStream();
 
@@ -329,13 +284,13 @@ namespace BluetoothLE.Utilities
                     TotalElapsedTime = (float)elapsedTime,
                     TotalTimerTime = (float)totalTimerTime,
                     TotalDistance = 0,
-                    AvgHeartRate = (byte)totalSummary.AvgHeartRate,
-                    MaxHeartRate = (byte)totalSummary.MaxHeartRate,
-                    MinHeartRate = (byte)totalSummary.MinHeartRate,
-                    AvgCadence = (byte)totalSummary.AvgCadence,
-                    MaxCadence = (byte)totalSummary.MaxCadence,
-                    AvgPower = (ushort)totalSummary.AvgPower,
-                    MaxPower = (ushort)totalSummary.MaxPower,
+                    AvgHeartRate = (byte)_stats[HeartRate].Average,
+                    MaxHeartRate = (byte)_stats[HeartRate].Maximum,
+                    //MinHeartRate = (byte),
+                    AvgCadence = (byte)_stats[Cadence].Average,
+                    MaxCadence = (byte)_stats[Cadence].Maximum,
+                    AvgPower = (ushort)_stats[Power].Average,
+                    MaxPower = (ushort)_stats[Power].Maximum,
                     NumLaps = (ushort)_numberOfLaps
                 },
                 new ActivityMesg

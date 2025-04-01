@@ -5,70 +5,6 @@ using System.Diagnostics.CodeAnalysis;
 namespace BluetoothLE.Utilities
 {
     /*
-     * This has one single source of truth for elapsed time, instead of
-     * several, but does it produce the values we're after?
-     */
-    public sealed class TimingTest
-    {
-        public Stopwatch ElapsedTimer = new();
-        public TimeSpan TotalPausedTime = TimeSpan.Zero;
-        public TimeSpan LapStartedAt = TimeSpan.Zero;
-        public TimeSpan TotalLapPausedTime = TimeSpan.Zero;
-
-        public DateTime? StartedAt = null;
-        public DateTime? LastPausedAt = null;
-
-        public TimeSpan Elapsed = TimeSpan.Zero;
-
-        [MemberNotNull(nameof(StartedAt))]
-        public void Start()
-        {
-            ElapsedTimer.Start();
-
-            StartedAt = DateTime.UtcNow;
-        }
-
-        [MemberNotNull(nameof(LastPausedAt))]
-        public void Pause()
-        {
-            LastPausedAt = DateTime.UtcNow;
-        }
-
-        public void Resume()
-        {
-            if (LastPausedAt.HasValue is false)
-                return;
-
-            DateTime now = DateTime.UtcNow;
-
-            TotalLapPausedTime += now - LastPausedAt.Value;
-            TotalPausedTime += now - LastPausedAt.Value;
-        }
-
-        public void Mark()
-        {
-            if (StartedAt.HasValue is false)
-                return;
-
-            Elapsed = ElapsedTimer.Elapsed;
-
-            LapStartedAt = DateTime.UtcNow - StartedAt.Value;
-        }
-        
-        public void Stop()
-        {
-            ElapsedTimer.Stop();
-
-            Elapsed = ElapsedTimer.Elapsed;
-        }
-
-        public TimeSpan TotalTime { get => Elapsed - TotalPausedTime; }
-        public TimeSpan ElapsedTime { get => Elapsed; }
-        public TimeSpan LapTotalTime { get => Elapsed - LapStartedAt - TotalLapPausedTime; }
-        public TimeSpan LapElapsedTime { get => Elapsed - LapStartedAt; }
-    }
-
-    /*
      * This is responsible for handling the workout timelines...
      * 
      * Allows for cutting the base timeline to allow for seeking,
@@ -79,20 +15,13 @@ namespace BluetoothLE.Utilities
     {
         public enum TimerState { Paused, Playing }
 
-        // Need a base timeline, which maps a video/workout to
-        // Or do we? If it's just an open range, where is the utility...?
-        public int[] BaseTimeline { get; set; } = [];
-
-        public Range BaseRange { get; set; } = ..;
-
         // This is made up of chunks of the base timeline...
         public List<Range> TimelineChunks { get; } = [];
 
         public Range CurrentChunk { get; private set; } = ..;
-        public DateTime ChunkStartedAt { get; private set; } = DateTime.UtcNow;
 
-        public int StartIndex { get; private set; } = 0;
         public int CurrentIndex { get; private set; } = 0;
+
         // `UpdateIndex` takes a value in milliseconds as an absolute value for the
         // workout timeline; but notify events only happen on changes >= 1s, so this
         // is purely read elsewhere where greater precision is needed...
@@ -103,16 +32,13 @@ namespace BluetoothLE.Utilities
         // Elapsed timer is wall clock time, so when paused, this continues ticking
         public Stopwatch ElapsedTimer = new();
 
-        // Total timer is total _active_ time, so stops during pauses
-        public Stopwatch TotalTimer = new();
-
         public DateTime? StartedAt { get; private set; } = null;
         public DateTime? EndedAt { get; private set; } = null;
-
-        // Should we store lap data here too?
         public DateTime? LapStartedAt { get; private set; } = null;
-        public Stopwatch LapElapsedTimer = new();
-        public Stopwatch LapTotalTimer = new();
+        public DateTime? LastPausedAt { get; private set; } = null;
+
+        public TimeSpan TotalPausedTime { get; private set; } = TimeSpan.Zero;
+        public TimeSpan TotalLapPausedTime { get; private set; } = TimeSpan.Zero;
 
         public event Action<int, int, TimerState>? OnIndexChanged;
 
@@ -120,7 +46,6 @@ namespace BluetoothLE.Utilities
 
         public TimelineController()
         {
-            // Do we want to take a size to set the base timeline range?
         }
 
         public void Reposition(int newIndex)
@@ -138,7 +63,6 @@ namespace BluetoothLE.Utilities
             // Start a new chunk, open ended
             CurrentChunk = newIndex..;
 
-            StartIndex = CurrentIndex = newIndex;
             AbsoluteSeconds = newIndex;
 
             NotifyIndexChanged(previousIndex, CurrentIndex, ElapsedTimer.IsRunning ? TimerState.Playing : TimerState.Paused);
@@ -164,44 +88,101 @@ namespace BluetoothLE.Utilities
             NotifyIndexChanged(CurrentIndex, newPosition, ElapsedTimer.IsRunning ? TimerState.Playing : TimerState.Paused);
 
             CurrentIndex = newPosition;
-            // Using open ended range, so don't need to update it...
-            //CurrentChunk = CurrentChunk.Start..CurrentIndex;
         }
 
         [MemberNotNull(nameof(StartedAt))]
         [MemberNotNull(nameof(LapStartedAt))]
         public void Start()
         {
-            if (StartedAt.HasValue is false)
+            if (StartedAt.HasValue)
             {
-                LapStartedAt = StartedAt = DateTime.UtcNow;
-                LapElapsedTimer.Start();
-                LapTotalTimer.Start();
+                Resume();
+
+                return;
             }
 
             ElapsedTimer.Start();
-            TotalTimer.Start();
+
+            LapStartedAt = StartedAt = DateTime.UtcNow;
+
+            Console.WriteLine($"Start():");
+            Console.WriteLine($"  Started At: {StartedAt}");
         }
 
+        public void Resume()
+        {
+            if (LastPausedAt.HasValue is false)
+            {
+                Console.WriteLine("WARNING: TimelineController::Resume(); don't know when we were paused, can't 'resume'.");
+
+                return;
+            }
+
+            var now = DateTime.UtcNow;
+
+            TotalLapPausedTime += now - LastPausedAt.Value;
+            TotalPausedTime += now - LastPausedAt.Value;
+
+            Console.WriteLine($"Resume():");
+            Console.WriteLine($"  Total Lap Paused Time: {TotalLapPausedTime}");
+            Console.WriteLine($"  Total Paused Time: {TotalPausedTime}");
+        }
+
+        [MemberNotNull(nameof(LastPausedAt))]
         public void Pause()
         {
-            LapTotalTimer.Stop();
-            TotalTimer.Stop();
+            LastPausedAt = DateTime.UtcNow;
+
+            Console.WriteLine($"Pause():");
+            Console.WriteLine($"  Last Paused At: {LastPausedAt}");
         }
 
-        [MemberNotNull(nameof(EndedAt))]
-        public void Stop()
+        public (TimeSpan LapElapsedTime, TimeSpan LapTotalTime) MarkLap()
         {
+            if (LapStartedAt.HasValue is false)
+            {
+                Console.WriteLine("WARNING: TimelineController::MarkLap(); don't know when lap started, can't 'mark' lap.");
+
+                return (TimeSpan.Zero, TimeSpan.Zero);
+            }
+
+            var now = DateTime.UtcNow;
+
+            var lapElapsedTime = now - LapStartedAt.Value;
+            var lapTotalTime = now - LapStartedAt.Value - TotalLapPausedTime;
+
+            LapStartedAt = now;
+            TotalLapPausedTime = TimeSpan.Zero;
+
+            Console.WriteLine($"Mark():");
+            Console.WriteLine($"  Lap Elapsed: {lapElapsedTime}");
+            Console.WriteLine($"  Next Lap Started At: {LapStartedAt}");
+
+            return (lapElapsedTime, lapTotalTime);
+        }
+
+        [MemberNotNull(nameof(StartedAt))]
+        [MemberNotNull(nameof(LapStartedAt))]
+        [MemberNotNull(nameof(EndedAt))]
+        public (TimeSpan LapElapsedTime, TimeSpan LapTotalTime, TimeSpan ElapsedTime, TimeSpan TotalTime) Stop()
+        {
+            if (StartedAt.HasValue is false)
+            {
+                LapStartedAt = StartedAt = DateTime.UtcNow;
+            }
+            if (LapStartedAt.HasValue is false)
+            {
+                LapStartedAt = StartedAt;
+            }
+
             if (EndedAt.HasValue)
-                return;
+            {
+                goto endedAtResults;
+            }
 
             EndedAt = DateTime.UtcNow;
 
             ElapsedTimer.Stop();
-            TotalTimer.Stop();
-
-            LapElapsedTimer.Stop();
-            LapTotalTimer.Stop();
 
             // Update to the final closed interval
             CurrentChunk = CurrentChunk.Start..CurrentIndex;
@@ -212,19 +193,20 @@ namespace BluetoothLE.Utilities
             {
                 Console.WriteLine($"    {chunk.Start} => {chunk.End}");
             }
+
+        endedAtResults:
+            var lapElapsedTime = EndedAt.Value - LapStartedAt.Value;
+            var lapTotalTime = EndedAt.Value - LapStartedAt.Value - TotalLapPausedTime;
+            var elapsedTime = ElapsedTimer.Elapsed;
+            var totalTime = ElapsedTimer.Elapsed - TotalPausedTime;
+
+            Console.WriteLine($"Stop():");
+            Console.WriteLine($"  Elapsed: {elapsedTime}");
+
+            return (lapElapsedTime, lapTotalTime, elapsedTime, totalTime);
         }
 
-        [MemberNotNull(nameof(LapStartedAt))]
-        public void Mark()
-        {
-            LapStartedAt = DateTime.UtcNow;
-            LapElapsedTimer.Restart();
-            LapTotalTimer.Restart();
-        }
-
-        public TimeSpan TotalTime { get => TotalTimer.Elapsed; }
+        public TimeSpan TotalTime { get => ElapsedTimer.Elapsed - TotalPausedTime; }
         public TimeSpan ElapsedTime { get => ElapsedTimer.Elapsed; }
-        public TimeSpan LapTotalTime { get => LapTotalTimer.Elapsed; }
-        public TimeSpan LapElapsedTime { get => LapElapsedTimer.Elapsed; }
     }
 }

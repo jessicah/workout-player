@@ -10,7 +10,7 @@
 @inject IConfiguration Configuration
 @inject IDbContextFactory<Models.AthleteContext> DbFactory
 @inject IHttpClientFactory HttpClientFactory
-@inject ILogger<BLE> Logger
+@inject ILogger<Video> Logger
 @inject Utilities.StravaOAuth OAuth
 @inject Utilities.BluetoothHandler BluetoothHandler
 @inject BluetoothLE.Services.SufferService Suffer
@@ -168,18 +168,8 @@
 
         var elapsed = (float)(endTime.Value - startTime.Value).TotalSeconds;
 
-        var lastLap = _laps.LastOrDefault();
-
-        if (lastLap is not null)
-        {
-            lastLap.EndLap(System.DateTime.UtcNow);
-
-            int durationMs = (int)(endTime.Value - startTime.Value).TotalMilliseconds;
-
-            _fitFileHandler?.AddLap(lastLap, durationMs);
-        }
-
-        _memoryStream = _fitFileHandler?.Close(startTime.Value, endTime.Value, 0, Models.Lap.TotalSummary(_laps));
+        throw new Exception("Fix Video.razor: no more Lap class");
+        //_memoryStream = _fitFileHandler?.Close(startTime.Value, endTime.Value, 0, Models.Lap.TotalSummary(_laps));
 
         startTime = null;
         endTime = null;
@@ -252,8 +242,6 @@
     private int lastLength = 0;
 
     private bool writtenStartEvent = false;
-
-    private List<Models.Lap> _laps = [];
 
     private async Task UpdateState()
     {

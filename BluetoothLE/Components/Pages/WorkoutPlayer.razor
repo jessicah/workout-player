@@ -11,7 +11,7 @@
 @inject IConfiguration Configuration
 @inject IDbContextFactory<Models.AthleteContext> DbFactory
 @inject IHttpClientFactory HttpClientFactory
-@inject ILogger<BLE> Logger
+@inject ILogger<WorkoutPlayer> Logger
 @inject Utilities.StravaOAuth OAuth
 @inject Utilities.BluetoothHandler BluetoothHandler
 @inject BluetoothLE.Services.SufferService Suffer
@@ -56,7 +56,7 @@
         <div id="whip"><div>@whipObject.Text.En</div></div>
     }
 
-    
+
 
 </div>
 
@@ -240,18 +240,8 @@
 
         var elapsed = (float)(endTime.Value - startTime.Value).TotalSeconds;
 
-        var lastLap = _laps.LastOrDefault();
-
-        if (lastLap is not null)
-        {
-            lastLap.EndLap(System.DateTime.UtcNow);
-
-            int durationMs = _lastTrack?.Size ?? 0;
-
-            _fitFileHandler?.AddLap(lastLap, durationMs);
-        }
-
-        _memoryStream = _fitFileHandler?.Close(startTime.Value, endTime.Value, 0, Models.Lap.TotalSummary(_laps));
+        throw new Exception("WorkoutPlayer: no Lap anymore, fix later");
+        //_memoryStream = _fitFileHandler?.Close(startTime.Value, endTime.Value, 0, Models.Lap.TotalSummary(_laps));
 
         startTime = null;
         endTime = null;
@@ -409,8 +399,6 @@
 
     private bool writtenStartEvent = false;
 
-    private List<Models.Lap> _laps = [];
-
     private async Task UpdateState()
     {
         try
@@ -498,34 +486,6 @@
                         cadenceBuilder.Data[index] = actualCadence ?? 0;
                         cadenceBuilder.Length = index + 1;
                     }
-
-                    if (currentTrack is not null && currentTrack.Value.Track != _lastTrack)
-                    {
-                        if (_laps.Count == 0 || _lastTrack is not null)
-                        {
-                            var previousLap = _laps.LastOrDefault();
-
-                            if (previousLap is not null)
-                            {
-                                previousLap.EndLap(System.DateTime.UtcNow);
-
-                                int durationMs = _lastTrack?.Size ?? 0;
-
-                                _fitFileHandler?.AddLap(previousLap, durationMs);
-                            }
-
-                            _laps.Add(new Models.Lap(System.DateTime.UtcNow, currentTrack.Value.Track.Size / 1000));
-                        }
-
-                        _lastTrack = currentTrack.Value.Track;
-                    }
-
-                    if (_laps.Count == 0)
-                    {
-                        throw new Exception("this shouldn't happen?");
-                    }
-
-                    _laps.Last().Add(actualHeartRate ?? 0, actualCadence ?? 0, actualPower ?? 0);
 
                     //if (Math.Floor((currentUpdate - lastUpdate).TotalSeconds) > 0)
                     if (index == 0 && !writtenStartEvent)

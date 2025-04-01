@@ -1,8 +1,5 @@
 ﻿using Blazor.Bluetooth;
 using Dynastream.Fit;
-using Microsoft.EntityFrameworkCore.Metadata.Internal;
-using static BluetoothLE.Components.Pages.BLE;
-using System.Reflection.PortableExecutable;
 using Microsoft.JSInterop;
 
 namespace BluetoothLE.Utilities
