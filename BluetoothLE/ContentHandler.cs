@@ -1,6 +1,4 @@
 ﻿using BluetoothLE.Models.ContentLibrary;
-using System.Collections;
-using static BluetoothLE.WorkoutHandler;
 
 namespace BluetoothLE.ContentHandler
 {
@@ -253,6 +251,14 @@ namespace BluetoothLE.ContentHandler
 
             // Really don't know what this is used for...
             offset = (int)(root.Offset * 1000);
+        }
+
+        public void ResetTimelines()
+        {
+            foreach (var (_, timeline) in timelines)
+            {
+                timeline.Reset();
+            }
         }
 
         private StorylineParameters? CurrentOfType(int position, string type, bool dequeue = false)

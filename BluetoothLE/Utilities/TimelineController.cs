@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore.Design;
+using NuGet.Common;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
@@ -40,6 +41,8 @@ namespace BluetoothLE.Utilities
         public TimeSpan TotalPausedTime { get; private set; } = TimeSpan.Zero;
         public TimeSpan TotalLapPausedTime { get; private set; } = TimeSpan.Zero;
 
+        public bool IsPaused { get; private set; } = true;
+
         public event Action<int, int, TimerState>? OnIndexChanged;
 
         private void NotifyIndexChanged(int previousIndex, int currentIndex, TimerState timerState) => OnIndexChanged?.Invoke(previousIndex, currentIndex, timerState);
@@ -66,6 +69,8 @@ namespace BluetoothLE.Utilities
             AbsoluteSeconds = newIndex;
 
             NotifyIndexChanged(previousIndex, CurrentIndex, ElapsedTimer.IsRunning ? TimerState.Playing : TimerState.Paused);
+
+            CurrentIndex = newIndex;
 
             Console.WriteLine("Chunks:");
             foreach (var chunk in TimelineChunks)
@@ -105,6 +110,8 @@ namespace BluetoothLE.Utilities
 
             LapStartedAt = StartedAt = DateTime.UtcNow;
 
+            IsPaused = false;
+
             Console.WriteLine($"Start():");
             Console.WriteLine($"  Started At: {StartedAt}");
         }
@@ -123,6 +130,10 @@ namespace BluetoothLE.Utilities
             TotalLapPausedTime += now - LastPausedAt.Value;
             TotalPausedTime += now - LastPausedAt.Value;
 
+            LastPausedAt = null;
+
+            IsPaused = false;
+
             Console.WriteLine($"Resume():");
             Console.WriteLine($"  Total Lap Paused Time: {TotalLapPausedTime}");
             Console.WriteLine($"  Total Paused Time: {TotalPausedTime}");
@@ -132,6 +143,8 @@ namespace BluetoothLE.Utilities
         public void Pause()
         {
             LastPausedAt = DateTime.UtcNow;
+
+            IsPaused = true;
 
             Console.WriteLine($"Pause():");
             Console.WriteLine($"  Last Paused At: {LastPausedAt}");
@@ -188,6 +201,8 @@ namespace BluetoothLE.Utilities
             CurrentChunk = CurrentChunk.Start..CurrentIndex;
             TimelineChunks.Add(CurrentChunk);
 
+            IsPaused = true;
+
             Console.WriteLine("Final Chunks:");
             foreach (var chunk in TimelineChunks)
             {
@@ -206,7 +221,25 @@ namespace BluetoothLE.Utilities
             return (lapElapsedTime, lapTotalTime, elapsedTime, totalTime);
         }
 
-        public TimeSpan TotalTime { get => ElapsedTimer.Elapsed - TotalPausedTime; }
+        //public TimeSpan TotalTime { get => ElapsedTimer.Elapsed - TotalPausedTime; }
         public TimeSpan ElapsedTime { get => ElapsedTimer.Elapsed; }
+
+        public TimeSpan TotalTime
+        {
+            get
+            {
+                if (StartedAt.HasValue is false)
+                    return TimeSpan.Zero;
+
+                if (IsPaused is false || LastPausedAt.HasValue is false)
+                {
+                    return ElapsedTimer.Elapsed - TotalPausedTime;
+                }
+                else
+                {
+                    return LastPausedAt.Value - StartedAt.Value - TotalPausedTime;
+                }
+            }
+        }
     }
 }

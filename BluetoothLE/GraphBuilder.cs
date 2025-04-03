@@ -67,7 +67,7 @@ namespace BluetoothLE
 
             var (begin, length) = range.GetOffsetAndLength(Length);
 
-            if (debug)
+            if (false)
             {
                 Console.WriteLine($"Paths: {begin} -- {begin + length}");
                 Console.WriteLine($"Total Length: {Length}");
@@ -189,6 +189,113 @@ namespace BluetoothLE
                 paths.Add(new(verticalLine, verticalLine, "yellow", "indicator"));
                 paths.Add(new(bottomTriangle, bottomTriangle, "yellow", "indicator"));
                 paths.Add(new(topTriangle, topTriangle, "yellow", "indicator"));
+            }
+
+            return paths;
+        }
+
+        public IEnumerable<Segment> Paths(IEnumerable<Range> chunks, Range finalChunk)
+        {
+            string Colour(int index) => Transformer.Colour(Data[index]);
+            double ScaledValue(int index) => GetScaledValue(Transformer.Value(Data[index]));
+
+            double currentValue = ScaledValue(0);
+            string currentColour = Colour(0);
+
+            bool isStartOfBlock = true;
+
+            List<Segment> paths = [];
+
+            IEnumerable<Range> allChunks = [.. chunks, finalChunk];
+
+            foreach (var chunk in allChunks)
+            {
+                fillBuilder.Clear();
+                strokeBuilder.Clear();
+
+                var (begin, length) = chunk.GetOffsetAndLength(Length);
+
+                for (int ix = begin; ix < begin + length; ++ix)
+                {
+                    double previousValue = currentValue;
+                    currentValue = ScaledValue(ix);
+
+                    string previousColour = currentColour;
+                    currentColour = Colour(ix);
+
+                    double startX = (double)(ix - begin) / ScaleFactor;
+                    double endX = (double)(ix - begin + 1) / ScaleFactor;
+
+                    // isStartOfBlock is true when ix == 0, or lastColour != currentColour
+                    if (isStartOfBlock)
+                    {
+                        if (ix > 0)
+                        {
+                            if (CreateFill)
+                            {
+                                fillBuilder.Append($"L{startX},{Height}");
+
+                                paths.Add(new(fillBuilder.ToString(), strokeBuilder.ToString(), previousColour));
+
+                                fillBuilder.Clear();
+                            }
+
+                            if (CreateStroke)
+                            {
+                                strokeBuilder.Clear();
+                            }
+                        }
+
+                        if (CreateFill)
+                        {
+                            fillBuilder.Append($"M{startX},{Height}");
+                            if (JoinBlocks)
+                                fillBuilder.Append($"L{startX},{previousValue}");
+                            else
+                                fillBuilder.Append($"L{startX},{currentValue}");
+                            fillBuilder.Append($"L{endX},{currentValue}");
+                        }
+
+                        if (CreateStroke)
+                        {
+                            if (JoinBlocks)
+                            {
+                                strokeBuilder.Append($"M{startX},{previousValue}");
+                            }
+                            else
+                            {
+                                strokeBuilder.Append($"M{startX},{currentValue}");
+                            }
+
+                            strokeBuilder.Append($"L{endX},{currentValue}");
+                        }
+                    }
+                    else
+                    {
+                        if (CreateFill)
+                            fillBuilder.Append($"L{endX},{currentValue}");
+
+                        if (CreateStroke)
+                        {
+                            strokeBuilder.Append($"L{endX},{currentValue}");
+                        }
+                    }
+
+                    if (ix < Length - 1)
+                    {
+                        isStartOfBlock = Transformer.Colour(Data[ix]) != Transformer.Colour(Data[ix + 1]);
+                    }
+                }
+
+                if (!isStartOfBlock)
+                {
+                    if (CreateFill)
+                    {
+                        fillBuilder.Append($"L{(double)(length) / ScaleFactor},{Height}");
+                    }
+
+                    paths.Add(new(fillBuilder.ToString(), strokeBuilder.ToString(), currentColour));
+                }
             }
 
             return paths;

@@ -356,7 +356,7 @@
 
             BuildWorkoutGraph(workoutJson);
 
-            workoutHandler = new WorkoutHandler(workoutJson);
+            workoutHandler = new(workoutJson);
 
             currentTargets = workoutHandler.Targets(0);
         }
@@ -390,8 +390,8 @@
         }
     }
 
-    VideoHandler? videoHandler = null;
-    WorkoutHandler? workoutHandler = null;
+    ContentHandler.VideoHandler? videoHandler = null;
+    ContentHandler.WorkoutHandler? workoutHandler = null;
 
     private System.DateTime last = System.DateTime.Now;
 

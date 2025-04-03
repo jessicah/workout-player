@@ -57,15 +57,31 @@
     cursor: pointer;
     margin-top: 0;
     }
+    body
+    {
+    cursor: none;
+    }
+    body:has(#paused)
+    {
+    cursor: pointer;
+    }
+    div#paused
+    {
+    content: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 512'><path fill='white' d='M48 64C21.5 64 0 85.5 0 112L0 400c0 26.5 21.5 48 48 48l32 0c26.5 0 48-21.5 48-48l0-288c0-26.5-21.5-48-48-48L48 64zm192 0c-26.5 0-48 21.5-48 48l0 288c0 26.5 21.5 48 48 48l32 0c26.5 0 48-21.5 48-48l0-288c0-26.5-21.5-48-48-48l-32 0z'/></svg>");
+    position: fixed;
+    top: calc(50% - 64px);
+    left: calc(50% - 64px);
+    width: 128px;
+    }
 </style>
 
-@if (_timer is null || _timer.Period == Timeout.InfiniteTimeSpan)
+@if (_timelineController.IsPaused)
 {
     <button style="left: 4px; top: 4px; z-index:20000" onclick="@BluetoothHandler.ConnectAsync">Connect to BLE</button>
 
     if (IsAuthenticated)
     {
-        <button id="strava-upload" onclick="@UploadAsync" style="right: 4px; left: unset; background-color: rgb(215 70 0); color: white; padding-left: 8px; padding-right: 8px; top: 4px"><i class="fa-brands fa-strava"></i></button>
+        <button id="strava-upload" onclick="@UploadAsync" style="z-index: 20000; right: 4px; left: unset; background-color: rgb(215 70 0); color: white; padding-left: 8px; padding-right: 8px; top: 4px"><i class="fa-brands fa-strava"></i></button>
     }
 }
 
@@ -135,88 +151,88 @@
                 <div class="current-icon"><i class="fa-light fa-sync icon"></i></div>
             </div>
             <div id="graph-container">
-                <div id="graph" style="position:relative">
-                    @if (workoutBuilder is not null)
-                    {
-                        /* Also, when paused, want to display just the normal graph, so we can seek back and forth, hiding the amalgamated SVGs
-                            and then show the amalgamated SVGs when resuming... and how do we calculate the seek bar position?
+                @if (_timelineController.IsPaused)
+                {
+                    <div id="paused"></div>
 
-                            Is it just "total timer time" from the TimelineController? It feels like it should be, but when pausing, it should
-                            be where it is in the full workout...
-
-                            Hmm....
-                         */
-                        int AbsoluteOffset = 0;
-                        int Offset = 0;
-                        int Width = 0;
-
-                        <input type="range" id="seek-bar" disabled="@(PlaybackPlaying)" @bind="SeekBarPosition" @bind:after="ChangePositionAsync" min="0" max="@workoutBuilder.Width" style="width:@(workoutBuilder.Width / 4)px; position: relative; z-index: 1000"/>
-
-                        @foreach (var chunk in _timelineController.TimelineChunks)
+                    <div id="graph" style="position:relative">
+                        @if (workoutBuilder is not null)
                         {
-                            (Offset, Width) = chunk.GetOffsetAndLength(workoutBuilder.Width);
+                            <input type="range" id="seek-bar" disabled="@(_timelineController.IsPaused is false)" @bind="SeekBarPosition" @bind:after="ChangePositionAsync" min="0" max="@workoutBuilder.Width" style="width:@(workoutBuilder.Width / 4)px; position: relative; z-index: 1000" />
 
-                            Width /= 4;
-
-                            <svg style="position: absolute; top: 0; left: @AbsoluteOffset" width="@Width" height="@workoutBuilder.Height" viewBox="0 0 @Width @workoutBuilder.Height">
-                                <rect width="@Width" height="@workoutBuilder.Height" x="0" y="0" fill="cyan" />
+                            <svg style="position: absolute; top: 0; left: 0" width="@workoutBuilder.Width" height="@workoutBuilder.Height" viewBox="0 0 @workoutBuilder.Width @workoutBuilder.Height">
+                                <!--<rect width="@workoutBuilder.Width" height="@workoutBuilder.Height" x="0" y="0" fill="cyan" />-->
                                 <g>
-                                    @foreach (var item in workoutBuilder.Paths(chunk, true))
+                                    @foreach (var item in workoutBuilder.Paths())
                                     {
                                         <path d="@item.Fill" fill="@item.Colour" fill-opacity="1" stroke="none" class="@item.Class"></path>
                                     }
                                 </g>
                             </svg>
-
-                            AbsoluteOffset += Width;
                         }
+                    </div>
+                }
+                else
+                {
+                    <div id="graph" style="position:relative">
+                        @if (workoutBuilder is not null)
+                        {
+                            // Alternatively, pass the list and current chunks to `GraphBuilder`, and it
+                            // generates the entire list of paths in a single call... this might also
+                            // avoid potential loss of precision errors, since the offset is currently an
+                            // int, and is being divided by `ScaleFactor` (currently hardcoded as 4)
+                            int AbsoluteOffset = 0;
+                            int Offset = 0;
+                            int Width = 0;
 
-                        (Offset, Width) = _timelineController.CurrentChunk.GetOffsetAndLength(workoutBuilder.Width);
+                            <input type="range" id="seek-bar" disabled="@(_timelineController.IsPaused is false)" @bind="SeekBarPosition" @bind:after="ChangePositionAsync" min="0" max="@workoutBuilder.Width" style="width:@(workoutBuilder.Width / 4)px; position: relative; z-index: 1000"/>
 
-                        Width /= 4;
+                            @foreach (var chunk in _timelineController.TimelineChunks)
+                            {
+                                (Offset, Width) = chunk.GetOffsetAndLength(workoutBuilder.Width);
 
-                        <svg style="position: absolute; top: 0; left: @AbsoluteOffset" width="@Width" height="@workoutBuilder.Height" viewBox="0 0 @Width @workoutBuilder.Height">
-                            <rect width="@Width" height="@workoutBuilder.Height" x="0" y="0" fill="yellow"/>
-                            <g>
-                                @foreach (var item in workoutBuilder.Paths(_timelineController.CurrentChunk, true))
-                                {
-                                    <path d="@item.Fill" fill="@item.Colour" fill-opacity="1" stroke="none" class="@item.Class"></path>
-                                }
-                            </g>
+                                Width /= 4;
+
+                                <svg style="position: absolute; top: 0; left: @AbsoluteOffset" width="@Width" height="@workoutBuilder.Height" viewBox="0 0 @Width @workoutBuilder.Height">
+                                    <!--<rect width="@Width" height="@workoutBuilder.Height" x="0" y="0" fill="cyan" />-->
+                                    <g>
+                                        @foreach (var item in workoutBuilder.Paths(chunk, true))
+                                        {
+                                            <path d="@item.Fill" fill="@item.Colour" fill-opacity="1" stroke="none" class="@item.Class"></path>
+                                        }
+                                    </g>
+                                </svg>
+
+                                AbsoluteOffset += Width;
+                            }
+
+                            (Offset, Width) = _timelineController.CurrentChunk.GetOffsetAndLength(workoutBuilder.Width);
+
+                            Width /= 4;
+
+                            <svg style="position: absolute; top: 0; left: @AbsoluteOffset" width="@Width" height="@workoutBuilder.Height" viewBox="0 0 @Width @workoutBuilder.Height">
+                                <!--<rect width="@Width" height="@workoutBuilder.Height" x="0" y="0" fill="yellow"/>-->
+                                <g>
+                                    @foreach (var item in workoutBuilder.Paths(_timelineController.CurrentChunk, true))
+                                    {
+                                        <path d="@item.Fill" fill="@item.Colour" fill-opacity="1" stroke="none" class="@item.Class"></path>
+                                    }
+                                </g>
+                            </svg>
+                        }
+                    </div>
+
+                    <div id="hr-graph">
+                        <svg width="@heartRateGraph.Width" height="@heartRateGraph.Height" viewBox="0 0 @heartRateGraph.Width @heartRateGraph.Height">
+                            <path d="@heartRateGraph.Path" fill="none" stroke="@heartRateGraph.Colour"></path>
                         </svg>
-                    }
-                </div>
-
-                <div id="hr-graph">
-
-                    @if (heartRateBuilder is not null)
-                    {
-                        <svg width="@heartRateBuilder.Width" height="@heartRateBuilder.Height" viewBox="0 0 @heartRateBuilder.Width @heartRateBuilder.Height">
-                            <rect width="@heartRateBuilder.Width" height="@heartRateBuilder.Height" x="0" y="0" fill="none" />
-                            <g>
-                                @foreach (var item in heartRateBuilder.Paths())
-                                {
-                                    <path d="@item.Stroke" fill="none" stroke="@item.Colour" class="@item.Class"></path>
-                                }
-                            </g>
+                    </div>
+                    <div id="power-graph">
+                        <svg width="@powerGraph.Width" height="@powerGraph.Height" viewBox="0 0 @powerGraph.Width @powerGraph.Height">
+                            <path d="@powerGraph.Path" fill="none" stroke="@powerGraph.Colour"></path>
                         </svg>
-                    }
-                </div>
-                <div id="power-graph">
-
-                    @if (powerBuilder is not null)
-                    {
-                        <svg width="@powerBuilder.Width" height="@powerBuilder.Height" viewBox="0 0 @powerBuilder.Width @powerBuilder.Height">
-                            <rect width="@powerBuilder.Width" height="@powerBuilder.Height" x="0" y="0" fill="none" />
-                            <g>
-                                @foreach (var item in powerBuilder.Paths())
-                                {
-                                    <path d="@item.Stroke" fill="none" stroke="@item.Colour" class="@item.Class"></path>
-                                }
-                            </g>
-                        </svg>
-                    }
-                </div>
+                    </div>
+                }
                 <div id="elapsed-time">@FormatTimeSpan(_timelineController.TotalTime)</div>
                 <div id="track-remaining-time"><div>@FormatTimeSpan(trackRemainingTime)</div></div>
                 <div id="total-remaining-time">@FormatTimeSpan(workoutRemainingTime)</div>
@@ -265,30 +281,6 @@
     [Parameter]
     public string Content { get; set; } = "Indoor Cycling";
 
-    private string ColorDiff(int currentTarget, int actualValue, int safeValue)
-    {
-        int diff = currentTarget - actualValue;
-
-        if (Math.Abs(diff) <= safeValue) {
-            return "none";
-        }
-
-        if (diff > (safeValue * 10)) diff = safeValue * 10;
-        if (diff < (safeValue * -10)) diff = safeValue * -10;
-
-        double percentage = Math.Abs((double)diff) / (double)(safeValue * 10);
-
-        if (diff > 0) {
-            int red = (int)(255 * percentage);
-            return $"rgb({red} 0 0 / 50%)";
-        }
-        else {
-            int blue = (int)(255 * percentage);
-            int green = (int)(127 * percentage);
-            return $"rgb(0 {green} {blue} / 50%)";
-        }
-    }
-
     WorkoutParameters? currentTargets = null;
     WorkoutParameters? upcomingTargets = null;
     StorylineParameters? whip = null;
@@ -301,27 +293,69 @@
 
     TimelineController _timelineController = new();
 
-    Blazored.Video.BlazoredVideo video;
+    Blazored.Video.BlazoredVideo video = null!;
 
     private int SeekBarPosition { get; set; } = 0;
-
-    private bool PlaybackPlaying { get; set; } = false;
 
     PeriodicTimer? _timer;
     Task? _timerTask;
     bool _disposed = false;
 
-    string Story = string.Empty;
-
     bool initSoundEffects = false;
 
-    record struct SoundEffect(int StartTime, int Duration, string EffectName, bool Started);
-    record struct Target(int StartTime, int Duration, int Power, bool Increase);
-
-    Queue<SoundEffect> soundEffects = [];
-    Queue<Target> targetChanges = [];
-
     Utilities.FitFileHandler? _fitFileHandler;
+
+    private SVGLineBuilder heartRateGraph = new SVGLineBuilder(100, "rgb(255 0 0)", 200);
+    private SVGLineBuilder cadenceGraph = new SVGLineBuilder(100, "rgb(0 0 255)", 200);
+    private SVGLineBuilder powerGraph = null!;
+
+    private GraphBuilder<WorkoutItem>? workoutBuilder = null;
+
+    int? actualHeartRate = null;
+    int? actualCadence = null;
+    int? actualPower = null;
+
+    private MemoryStream? _memoryStream;
+
+    private IReadOnlyList<WorkoutTrigger> workoutJson = [];
+
+    private bool IsAuthenticated { get; set; } = false;
+
+    ContentHandler.VideoHandler? videoHandler = null;
+    ContentHandler.WorkoutHandler? workoutHandler = null;
+
+    private string ContentName { get; set; } = "Indoor Cycling";
+
+    private int lastLength = 0;
+
+    private Models.Stats? AthleteStats { get; set; }
+
+    private string ColorDiff(int currentTarget, int actualValue, int safeValue)
+    {
+        int diff = currentTarget - actualValue;
+
+        if (Math.Abs(diff) <= safeValue)
+        {
+            return "none";
+        }
+
+        if (diff > (safeValue * 10)) diff = safeValue * 10;
+        if (diff < (safeValue * -10)) diff = safeValue * -10;
+
+        double percentage = Math.Abs((double)diff) / (double)(safeValue * 10);
+
+        if (diff > 0)
+        {
+            int red = (int)(255 * percentage);
+            return $"rgb({red} 0 0 / 50%)";
+        }
+        else
+        {
+            int blue = (int)(255 * percentage);
+            int green = (int)(127 * percentage);
+            return $"rgb(0 {green} {blue} / 50%)";
+        }
+    }
 
     async Task ChangePositionAsync()
     {
@@ -348,6 +382,7 @@
         Console.WriteLine($"Resetting timelines for sync...");
 
         workoutHandler?.ResetTimelines();
+        videoHandler?.ResetTimelines();
 
         // More things to consider:
         // - Updating the workout graph to cut out skipped over blocks
@@ -388,8 +423,6 @@
 
                 await video.StartPlayback();
 
-                PlaybackPlaying = true;
-
                 _timer.Period = TimeSpan.FromMilliseconds(100);
 
                 if (_fitFileHandler is null)
@@ -402,10 +435,6 @@
                 _timelineController.Pause();
 
                 await video.PausePlayback();
-
-                PlaybackPlaying = false;
-
-                _timer.Period = Timeout.InfiniteTimeSpan;
             }
         } catch (Exception exn)
         {
@@ -454,12 +483,6 @@
         _fitFileHandler = null;
     }
 
-    private MemoryStream? _memoryStream;
-
-    private IReadOnlyList<WorkoutTrigger> workoutJson = [];
-
-    private bool IsAuthenticated { get; set; } = false;
-
     async Task<string> LocateVideoPath()
     {
         var contentItem = await Suffer.ContentCollection.Find(item => item.Id == Content).SingleAsync();
@@ -468,8 +491,6 @@
 
         return System.IO.Path.GetFileName(System.IO.Directory.EnumerateFiles(@"G:\videos", "*.mp4").SingleOrDefault(item => item.Contains(fileKey)) ?? string.Empty);
     }
-
-    private string ContentName { get; set; } = "Indoor Cycling";
 
     protected override bool ShouldRender()
     {
@@ -531,7 +552,7 @@
 
             BuildWorkoutGraph(workoutJson);
 
-            workoutHandler = new WorkoutHandler(workoutJson);
+            workoutHandler = new ContentHandler.WorkoutHandler(workoutJson);
 
             currentTargets = workoutHandler.Targets(0);
         }
@@ -586,13 +607,6 @@
         }
     }
 
-    VideoHandler? videoHandler = null;
-    WorkoutHandler? workoutHandler = null;
-
-    private System.DateTime last = System.DateTime.Now;
-
-    private Track? _lastTrack = null;
-
     private (int Offset, Track Track)? GetCurrentTrack(int offset)
     {
         int currentOffset = 0;
@@ -613,8 +627,6 @@
         return null;
     }
 
-    private int lastLength = 0;
-
     private async Task UpdateState()
     {
         try
@@ -634,7 +646,33 @@
 
                     int currentPosition = _timelineController.CurrentMilliseconds;
 
-                    SeekBarPosition = _timelineController.CurrentIndex;
+                    //SeekBarPosition = _timelineController.CurrentIndex;
+                    if (_timelineController.IsPaused)
+                    {
+                        // Hide the (possibly) amalgamated graph, show the original graph, potentially hide the
+                        // heart rate & power graphs as well, as probably nonsense to show them?
+
+                        // Also, update the seek bar position to be relative to the whole workout... how do we get that? I suppose
+                        // from `TimelineChunks`?
+                        // Unhide cursor, potentially show a (large) pause symbol on screen?
+                        Console.WriteLine($"Workout is paused: current index: {_timelineController.CurrentIndex}");
+
+                        SeekBarPosition = _timelineController.CurrentIndex;
+                    }
+                    else
+                    {
+                        // Show the (possibly) amalgamated graph, show HR & power graphs, hide the cursor, update the
+                        // seek bar position to total time / workoutBuilder.ScaleFactor...
+                        Console.WriteLine($"Workout is playing: total seconds: {(int)_timelineController.TotalTime.TotalSeconds}");
+
+                        var previousChunksTotal = _timelineController.TimelineChunks.Sum(r => r.GetOffsetAndLength(workoutBuilder.Width).Length);
+                        Console.WriteLine($"Previous Chunks Total Length: {previousChunksTotal}");
+
+                        // And then add `CurrentIndex` to that? seems like that might be correct...
+                        Console.WriteLine($"SeekBarPosition = {previousChunksTotal} + {_timelineController.CurrentIndex} = {previousChunksTotal + _timelineController.CurrentIndex}");
+
+                        SeekBarPosition = (int)_timelineController.TotalTime.TotalSeconds;
+                    }
 
                     currentTargets = workoutHandler?.Targets(currentPosition);
                     upcomingTargets = workoutHandler?.NextTargets(currentPosition);
@@ -688,26 +726,15 @@
                     // use a loop for when rendering is lagging, ensure the graph always has values...
                     // this is now broken with ability to seek forward/back, so need the absolute index...
                     // and also xyz.Data[ix] could end up being out of range... hmm
-                    if (heartRateBuilder is not null)
-                    {
-                        for (int ix = lastLength + 1; ix <= index; ++ix)
-                            heartRateBuilder.Data[ix] = actualHeartRate ?? 0;
-                        heartRateBuilder.Length = index + 1;
+                    for (int ix = lastLength + 1; ix <= index; ++ix) {
+                        heartRateGraph.AddValue(actualHeartRate ?? 0);
                     }
 
-                    if (powerBuilder is not null)
-                    {
-                        for (int ix = lastLength + 1; ix <= index; ++ix)
-                            powerBuilder.Data[ix] = actualPower ?? 0;
-                        powerBuilder.Length = index + 1;
-                    }
+                    for (int ix = lastLength + 1; ix <= index; ++ix)
+                        powerGraph.AddValue(actualPower ?? 0);
 
-                    if (cadenceBuilder is not null)
-                    {
-                        for (int ix = lastLength + 1; ix <= index; ++ix)
-                            cadenceBuilder.Data[ix] = actualCadence ?? 0;
-                        cadenceBuilder.Length = index + 1;
-                    }
+                    for (int ix = lastLength + 1; ix <= index; ++ix)
+                        cadenceGraph.AddValue(actualCadence ?? 0);
 
                     if (index > lastLength)
                     {
@@ -739,8 +766,6 @@
             return timeSpan.ToString(@"m':'ss");
         }
     }
-
-    private Models.Stats? AthleteStats { get; set; }
 
     private WorkoutItem FromParameters(WorkoutParameters parameters)
     {
@@ -824,30 +849,14 @@
 
         var maxPower = (int)Math.Ceiling((double)workoutValues.MaxBy(value => value.Value).Value / 10) * 10 + 50;
 
-        //Console.WriteLine($"Max Power Value: {maxPower}W");
-
-        // The new graph handling
         workoutBuilder = new GraphBuilder<WorkoutItem>(new WorkoutItemTransformer(), workoutValues.Count, 100, maxPower)
             {
                 CreateStroke = false,
                 JoinBlocks = false,
                 Length = workoutValues.Count
             };
-        heartRateBuilder = new GraphBuilder<int>(new ValueTransformer("rgb(255 0 0)"), workoutValues.Count, 100, 200)
-            {
-                CreateFill = false,
-                JoinBlocks = false
-            };
-        cadenceBuilder = new GraphBuilder<int>(new ValueTransformer("rgb(0 0 255)"), workoutValues.Count, 100, 200)
-            {
-                CreateFill = false,
-                JoinBlocks = false
-            };
-        powerBuilder = new GraphBuilder<int>(new ValueTransformer("rgb(255 255 255)"), workoutValues.Count, 100, maxPower)
-            {
-                CreateFill = false,
-                JoinBlocks = false
-            };
+
+        powerGraph = new SVGLineBuilder(100, "rgb(255 255 255)", maxPower);
 
         workoutBuilder.Data = workoutValues.ToArray();
     }
@@ -889,13 +898,4 @@
         await Intervals.UploadAsync(1, $"The Sufferfest: {ContentName}", _memoryStream, externalId);
         await OAuth.UploadAsync(1, $"The Sufferfest: {ContentName}", _memoryStream, externalId, "Ride");
     }
-
-    private GraphBuilder<WorkoutItem>? workoutBuilder = null;
-    private GraphBuilder<int>? heartRateBuilder = null;
-    private GraphBuilder<int>? powerBuilder = null;
-    private GraphBuilder<int>? cadenceBuilder = null;
-
-    int? actualHeartRate = null;
-    int? actualCadence = null;
-    int? actualPower = null;
 }
