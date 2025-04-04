@@ -47,6 +47,8 @@ namespace BluetoothLE.Utilities
 
         private void NotifyIndexChanged(int previousIndex, int currentIndex, TimerState timerState) => OnIndexChanged?.Invoke(previousIndex, currentIndex, timerState);
 
+        private DateTime _lastTickAt = DateTime.UtcNow;
+
         public TimelineController()
         {
         }
@@ -95,6 +97,20 @@ namespace BluetoothLE.Utilities
             CurrentIndex = newPosition;
         }
 
+        public void Tick()
+        {
+            if (IsPaused)
+                return;
+
+            DateTime now = DateTime.UtcNow;
+
+            TimeSpan tickSize = now - _lastTickAt;
+
+            _lastTickAt = now;
+
+            UpdateIndex(AbsoluteSeconds + tickSize.TotalSeconds);
+        }
+
         [MemberNotNull(nameof(StartedAt))]
         [MemberNotNull(nameof(LapStartedAt))]
         public void Start()
@@ -109,6 +125,8 @@ namespace BluetoothLE.Utilities
             ElapsedTimer.Start();
 
             LapStartedAt = StartedAt = DateTime.UtcNow;
+
+            _lastTickAt = StartedAt.Value;
 
             IsPaused = false;
 
@@ -131,6 +149,8 @@ namespace BluetoothLE.Utilities
             TotalPausedTime += now - LastPausedAt.Value;
 
             LastPausedAt = null;
+
+            _lastTickAt = now;
 
             IsPaused = false;
 

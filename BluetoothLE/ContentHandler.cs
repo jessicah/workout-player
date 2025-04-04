@@ -163,7 +163,7 @@ namespace BluetoothLE.ContentHandler
         {
             if (timelines.TryGetValue(type, out var timeline) == false)
             {
-                Console.WriteLine($"Unable to locate workout timeline of type {type}");
+                //Console.WriteLine($"Unable to locate workout timeline of type {type}");
             }
 
             if (timeline is null || position >= duration)
@@ -178,7 +178,7 @@ namespace BluetoothLE.ContentHandler
         {
             if (timelines.TryGetValue(type, out var timeline) == false)
             {
-                Console.WriteLine($"Unable to locate workout timeline of type {type}");
+                //Console.WriteLine($"Unable to locate workout timeline of type {type}");
             }
 
             if (timeline is null || position >= duration)

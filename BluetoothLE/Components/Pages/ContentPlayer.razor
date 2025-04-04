@@ -122,12 +122,19 @@
         <div id="whip"><div>@whipObject.Text.En</div></div>
     }
 
-    @if (currentTargets is WorkoutParameters targets)
-    {
-        var currentPower = FromParameters(targets).Value;
-        var currentCadence = targets.Rpm?.Value ?? 0;
+    <div id="workout-display">
+        @if (currentTargets is WorkoutParameters targets /*&& videoHandler is not null*/)
+        {
+            // THE ABOVE CHECK DOESN'T WORK FOR YOGA (videoHandler is not null), probably
+            // need to massage the data that gets stored into the database so that it doesn't
+            // define "dummy" data that isn't needed for our workout player to behave.
+            //
+            // Other than that, both NoVids and Yoga/Strength should work with this same
+            // Blazor page...
+            //Console.WriteLine($"Have workout parameters? {targets}");
+            var currentPower = FromParameters(targets).Value;
+            var currentCadence = targets.Rpm?.Value ?? 0;
 
-        <div id="workout-display">
             <div id="heart-rate" class="target-grid">
                 <div class="current-value">@FromInt(actualHeartRate)</div>
                 <div class="current-icon"><i class="fa-light fa-heart icon"></i></div>
@@ -237,9 +244,43 @@
                 <div id="track-remaining-time"><div>@FormatTimeSpan(trackRemainingTime)</div></div>
                 <div id="total-remaining-time">@FormatTimeSpan(workoutRemainingTime)</div>
             </div>
-        </div>
-    }
+        }
+        else
+        {
+            <style type="text/css">
+                #progress {
+                background-color: deepskyblue;
+                }
 
+                div#workout-display {
+                grid-template-rows: calc(32pt + 16px) 32px;
+                }
+
+                div#elapsed-time {
+                grid-row: 1;
+                }
+
+                div#total-remaining-time {
+                grid-row: 1;
+                grid-column: -1;
+                }
+
+                div#progress {
+                grid-row: 2;
+                grid-column: 1 / 7;
+                }
+            </style>
+
+            @if (_timelineController.IsPaused)
+            {
+                <div id="paused"></div>
+            }
+
+            <div id="elapsed-time">@FormatTimeSpan(_timelineController.TotalTime)</div>
+            <div id="total-remaining-time">@FormatTimeSpan(workoutRemainingTime)</div>
+            <div id="progress" style="width: @($"{percentComplete:F2}")%"></div>
+        }
+    </div>
 </div>
 
 <audio id="effort_increase" src="sounds/effort_increase.mp3"></audio>
@@ -330,6 +371,8 @@
 
     private Models.Stats? AthleteStats { get; set; }
 
+    double percentComplete = 0;
+
     private string ColorDiff(int currentTarget, int actualValue, int safeValue)
     {
         int diff = currentTarget - actualValue;
@@ -417,24 +460,49 @@
                 _timerTask = UpdateState();
             }
 
-            if (await video.GetPausedAsync())
+            var src = await video.GetCurrentSrcAsync();
+
+            if (string.IsNullOrEmpty(await video.GetCurrentSrcAsync()))
             {
-                _timelineController.Start();
-
-                await video.StartPlayback();
-
-                _timer.Period = TimeSpan.FromMilliseconds(100);
-
-                if (_fitFileHandler is null)
+                if (_timelineController.IsPaused)
                 {
-                    _fitFileHandler = new(ContentName);
+                    _timelineController.Start();
+
+                    _timer.Period = TimeSpan.FromMilliseconds(100);
+
+                    if (_fitFileHandler is null)
+                    {
+                        _fitFileHandler = new(ContentName);
+                    }
+                }
+                else
+                {
+                    _timelineController.Pause();
                 }
             }
             else
             {
-                _timelineController.Pause();
 
-                await video.PausePlayback();
+                if (await video.GetPausedAsync())
+                {
+                    _timelineController.Start();
+
+                    // TODO: Doesn't fail until here, where no video source is actually configured...
+                    await video.StartPlayback();
+
+                    _timer.Period = TimeSpan.FromMilliseconds(100);
+
+                    if (_fitFileHandler is null)
+                    {
+                        _fitFileHandler = new(ContentName);
+                    }
+                }
+                else
+                {
+                    _timelineController.Pause();
+
+                    await video.PausePlayback();
+                }
             }
         } catch (Exception exn)
         {
@@ -494,7 +562,7 @@
 
     protected override bool ShouldRender()
     {
-        return videoHandler is not null && workoutHandler is not null;
+        return (videoHandler is not null && workoutHandler is not null) || _timelineController.ElapsedTimer.IsRunning;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -506,6 +574,13 @@
 
         try
         {
+            if (string.IsNullOrEmpty(contentItem.VideoId))
+            {
+                Console.WriteLine("Not setting video source: no video id");
+
+                return;
+            }
+
             await video.SetSrcAsync($"/videos/{contentItem.VideoId}.mp4");
         } catch (Exception setSrcException)
         {
@@ -543,9 +618,11 @@
         }
         else
         {
-            throw new ArgumentOutOfRangeException("json", $"Invalid number of storylines in JSON. Found {videoTriggers?.Count ?? 0}, expected 1.");
+            //throw new ArgumentOutOfRangeException("json", $"Invalid number of storylines in JSON. Found {videoTriggers?.Count ?? 0}, expected 1.");
+            _timer = new(Timeout.InfiniteTimeSpan);
         }
 
+        // UGH: (some?) Yoga and other videos have workout triggers despite not needing them...?
         if (workoutTriggers is not null && workoutTriggers.Count > 0)
         {
             workoutJson = workoutTriggers;
@@ -638,11 +715,16 @@
 
                 try
                 {
-                    double videoTime = await video.GetCurrentTimeAsync();
+                    // RIGHT: This doesn't work on novids...
+                    //double videoTime = await video.GetCurrentTimeAsync();
+                    // AND: this doesn't work, because we need to know where in the video/content
+                    // we are... how else can this be figured out?
+                    //double videoTime = _timelineController.TotalTime.TotalSeconds;
 
                     // Currently, `TimelineController` doesn't update the timer... so
                     // let's do that here from the video time (which is in seconds)
-                    _timelineController.UpdateIndex(videoTime);
+                    //_timelineController.UpdateIndex(videoTime);
+                    _timelineController.Tick();
 
                     int currentPosition = _timelineController.CurrentMilliseconds;
 
@@ -655,7 +737,7 @@
                         // Also, update the seek bar position to be relative to the whole workout... how do we get that? I suppose
                         // from `TimelineChunks`?
                         // Unhide cursor, potentially show a (large) pause symbol on screen?
-                        Console.WriteLine($"Workout is paused: current index: {_timelineController.CurrentIndex}");
+                        //Console.WriteLine($"Workout is paused: current index: {_timelineController.CurrentIndex}");
 
                         SeekBarPosition = _timelineController.CurrentIndex;
                     }
@@ -663,13 +745,13 @@
                     {
                         // Show the (possibly) amalgamated graph, show HR & power graphs, hide the cursor, update the
                         // seek bar position to total time / workoutBuilder.ScaleFactor...
-                        Console.WriteLine($"Workout is playing: total seconds: {(int)_timelineController.TotalTime.TotalSeconds}");
+                        //Console.WriteLine($"Workout is playing: total seconds: {(int)_timelineController.TotalTime.TotalSeconds}");
 
                         var previousChunksTotal = _timelineController.TimelineChunks.Sum(r => r.GetOffsetAndLength(workoutBuilder.Width).Length);
-                        Console.WriteLine($"Previous Chunks Total Length: {previousChunksTotal}");
+                        //Console.WriteLine($"Previous Chunks Total Length: {previousChunksTotal}");
 
                         // And then add `CurrentIndex` to that? seems like that might be correct...
-                        Console.WriteLine($"SeekBarPosition = {previousChunksTotal} + {_timelineController.CurrentIndex} = {previousChunksTotal + _timelineController.CurrentIndex}");
+                        //Console.WriteLine($"SeekBarPosition = {previousChunksTotal} + {_timelineController.CurrentIndex} = {previousChunksTotal + _timelineController.CurrentIndex}");
 
                         SeekBarPosition = (int)_timelineController.TotalTime.TotalSeconds;
                     }
@@ -705,6 +787,11 @@
                         //workoutRemainingTime = TimeSpan.FromSeconds(await video.GetDurationAsync() - (int)videoTime);
                         int workoutTime = workoutJson.SelectMany(root => root.Tracks.Select(track => track.Size)).Sum();
 
+                        if (workoutJson.Count == 0)
+                        {
+                            workoutTime = (int)(await video.GetDurationAsync() * 1000);
+                        }
+
                         if (workoutTime > currentPosition)
                         {
                             workoutRemainingTime = TimeSpan.FromMilliseconds(workoutTime - currentPosition);
@@ -713,6 +800,8 @@
                         {
                             workoutRemainingTime = TimeSpan.Zero;
                         }
+
+                        percentComplete = ((double)currentPosition * 100) / (double)workoutTime;
                     } catch (Exception exn)
                     {
                         Logger.LogError($"Error trying to update timers: {exn.Message}");
@@ -721,7 +810,8 @@
 
                     var currentUpdate = TimeOnly.FromDateTime(System.DateTime.UtcNow);
 
-                    int index = (int)Math.Floor(videoTime);
+                    //int index = (int)Math.Floor(videoTime);
+                    int index = (int)Math.Floor(_timelineController.TotalTime.TotalSeconds);
 
                     // use a loop for when rendering is lagging, ensure the graph always has values...
                     // this is now broken with ability to seek forward/back, so need the absolute index...
@@ -731,7 +821,7 @@
                     }
 
                     for (int ix = lastLength + 1; ix <= index; ++ix)
-                        powerGraph.AddValue(actualPower ?? 0);
+                        powerGraph?.AddValue(actualPower ?? 0);
 
                     for (int ix = lastLength + 1; ix <= index; ++ix)
                         cadenceGraph.AddValue(actualCadence ?? 0);
