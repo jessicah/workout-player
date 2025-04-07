@@ -183,9 +183,9 @@
                             // generates the entire list of paths in a single call... this might also
                             // avoid potential loss of precision errors, since the offset is currently an
                             // int, and is being divided by `ScaleFactor` (currently hardcoded as 4)
-                            int AbsoluteOffset = 0;
-                            int Offset = 0;
-                            int Width = 0;
+                            double AbsoluteOffset = 0;
+                            double Offset = 0;
+                            double Width = 0;
 
                             <input type="range" id="seek-bar" disabled="@(_timelineController.IsPaused is false)" @bind="SeekBarPosition" @bind:after="ChangePositionAsync" min="0" max="@workoutBuilder.Width" style="width:@(workoutBuilder.Width / 4)px; position: relative; z-index: 1000"/>
 
