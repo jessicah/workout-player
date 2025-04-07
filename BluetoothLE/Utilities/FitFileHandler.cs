@@ -49,7 +49,7 @@ namespace BluetoothLE.Utilities
 
         private SemaphoreSlim _lock = new(1, 1);
 
-        public FitFileHandler(string workoutName, Sport sport = Sport.Cycling, SubSport subSport = SubSport.IndoorCycling)
+        public FitFileHandler(string workoutName, Sport sport, SubSport subSport)
         {
             WorkoutName = workoutName;
 

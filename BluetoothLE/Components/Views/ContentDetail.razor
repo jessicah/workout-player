@@ -1,16 +1,5 @@
 ﻿<div class="video-container">
-    @if (string.IsNullOrEmpty(Metadata.Item.VideoId))
-    {
-        <h2><a href="/content-player/@Metadata.Item.Id">@Metadata.Item.Name</a></h2>
-    }
-    else if (Metadata.HasStoryline is false)
-    {
-        <h2><a href="/content-player/@Metadata.Item.Id">@Metadata.Item.Name</a></h2>
-    }
-    else
-    {
-        <h2><a href="/content-player/@Metadata.Item.Id">@Metadata.Item.Name</a></h2>
-    }
+    <h2><a href="/content-player/@Metadata.Item.Id">@Metadata.Item.Name</a></h2>
 
     <div class="difficulty">
         <label>NM</label>
