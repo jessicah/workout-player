@@ -57,6 +57,9 @@
     cursor: pointer;
     margin-top: 0;
     }
+    input[type=range].plain::-webkit-slider-thumb {
+    height: 32px;
+    }
     body
     {
     cursor: none;
@@ -127,118 +130,120 @@
         {
             if (currentTargets is WorkoutParameters targets)
             {
-            var currentPower = FromParameters(targets).Value;
-            var currentCadence = targets.Rpm?.Value ?? 0;
+                var currentPower = FromParameters(targets).Value;
+                var currentCadence = targets.Rpm?.Value ?? 0;
 
-            <div id="heart-rate" class="target-grid">
-                <div class="current-value">@FromInt(actualHeartRate)</div>
-                <div class="current-icon"><i class="fa-light fa-heart icon"></i></div>
-                <div class="target-value"></div>
-                <div class="upcoming-value"></div>
-            </div>
-            <div id="power" class="target-grid">
-                <div class="target-value">@currentPower</div>
-                <UpcomingValue CurrentTarget="currentPower" CurrentPosition="_timelineController.CurrentMilliseconds"
-                Parameters="effortChangeObject" UpcomingParameters="upcomingTargets"
-                GetUpcoming="(parameters) => FromParameters(parameters).Value"></UpcomingValue>
-                <div class="current-value" style="background-color: @ColorDiff(currentPower, actualPower ?? 0, 10)">@FromInt(actualPower)</div>
-                <div class="current-icon"><i class="fa-light fa-bolt icon"></i></div>
-            </div>
-            <div id="cadence" class="target-grid">
-                <div class="target-value">@currentCadence</div>
-                <UpcomingValue CurrentTarget="currentCadence" CurrentPosition="_timelineController.CurrentMilliseconds"
-                Parameters="effortChangeObject" UpcomingParameters="upcomingTargets"
-                GetUpcoming="(parameters => parameters.Rpm?.Value ?? 0)"></UpcomingValue>
-                <div class="current-value" style="background-color: @ColorDiff(currentCadence, actualCadence ?? 0, 5)">@FromInt(actualCadence)</div>
-                <div class="current-icon"><i class="fa-light fa-sync icon"></i></div>
-            </div>
-            <div id="graph-container">
-                @if (_timelineController.IsPaused)
-                {
-                    <div id="paused"></div>
+                <div id="heart-rate" class="target-grid">
+                    <div class="current-value">@FromInt(actualHeartRate)</div>
+                    <div class="current-icon"><i class="fa-light fa-heart icon"></i></div>
+                    <div class="target-value"></div>
+                    <div class="upcoming-value"></div>
+                </div>
+                <div id="power" class="target-grid">
+                    <div class="target-value">@currentPower</div>
+                    <UpcomingValue CurrentTarget="currentPower" CurrentPosition="_timelineController.CurrentMilliseconds"
+                    Parameters="effortChangeObject" UpcomingParameters="upcomingTargets"
+                    GetUpcoming="(parameters) => FromParameters(parameters).Value"></UpcomingValue>
+                    <div class="current-value" style="background-color: @ColorDiff(currentPower, actualPower ?? 0, 10)">@FromInt(actualPower)</div>
+                    <div class="current-icon"><i class="fa-light fa-bolt icon"></i></div>
+                </div>
+                <div id="cadence" class="target-grid">
+                    <div class="target-value">@currentCadence</div>
+                    <UpcomingValue CurrentTarget="currentCadence" CurrentPosition="_timelineController.CurrentMilliseconds"
+                    Parameters="effortChangeObject" UpcomingParameters="upcomingTargets"
+                    GetUpcoming="(parameters => parameters.Rpm?.Value ?? 0)"></UpcomingValue>
+                    <div class="current-value" style="background-color: @ColorDiff(currentCadence, actualCadence ?? 0, 5)">@FromInt(actualCadence)</div>
+                    <div class="current-icon"><i class="fa-light fa-sync icon"></i></div>
+                </div>
+                <div id="graph-container">
+                    @if (_timelineController.IsPaused)
+                    {
+                        <div id="paused"></div>
 
-                    <div id="graph" style="position:relative">
-                        @if (workoutBuilder is not null)
-                        {
-                            <input type="range" id="seek-bar" disabled="@(_timelineController.IsPaused is false)" @bind="SeekBarPosition" @bind:after="ChangePositionAsync" min="0" max="@workoutBuilder.Width" style="width:@(workoutBuilder.Width / 4)px; position: relative; z-index: 1000" />
-
-                            <svg style="position: absolute; top: 0; left: 0" width="@workoutBuilder.Width" height="@workoutBuilder.Height" viewBox="0 0 @workoutBuilder.Width @workoutBuilder.Height">
-                                <!--<rect width="@workoutBuilder.Width" height="@workoutBuilder.Height" x="0" y="0" fill="cyan" />-->
-                                <g>
-                                    @foreach (var item in workoutBuilder.Paths())
-                                    {
-                                        <path d="@item.Fill" fill="@item.Colour" fill-opacity="1" stroke="none" class="@item.Class"></path>
-                                    }
-                                </g>
-                            </svg>
-                        }
-                    </div>
-                }
-                else
-                {
-                    <div id="graph" style="position:relative">
-                        @if (workoutBuilder is not null)
-                        {
-                            // Alternatively, pass the list and current chunks to `GraphBuilder`, and it
-                            // generates the entire list of paths in a single call... this might also
-                            // avoid potential loss of precision errors, since the offset is currently an
-                            // int, and is being divided by `ScaleFactor` (currently hardcoded as 4)
-                            double AbsoluteOffset = 0;
-                            double Offset = 0;
-                            double Width = 0;
-
-                            <input type="range" id="seek-bar" disabled="@(_timelineController.IsPaused is false)" @bind="SeekBarPosition" @bind:after="ChangePositionAsync" min="0" max="@workoutBuilder.Width" style="width:@(workoutBuilder.Width / 4)px; position: relative; z-index: 1000"/>
-
-                            @foreach (var chunk in _timelineController.TimelineChunks)
+                        <div id="graph" style="position:relative">
+                            @if (workoutBuilder is not null)
                             {
-                                (Offset, Width) = chunk.GetOffsetAndLength(workoutBuilder.Width);
+                                <input type="range" id="seek-bar" disabled="@(_timelineController.IsPaused is false)" @bind="SeekBarPosition" @bind:after="ChangePositionAsync" min="0" max="@workoutBuilder.Width" style="width:@(workoutBuilder.Width / 4)px; position: relative; z-index: 1000" />
+
+                                <svg style="position: absolute; top: 0; left: 0" width="@workoutBuilder.Width" height="@workoutBuilder.Height" viewBox="0 0 @workoutBuilder.Width @workoutBuilder.Height">
+                                    <!--<rect width="@workoutBuilder.Width" height="@workoutBuilder.Height" x="0" y="0" fill="cyan" />-->
+                                    <g>
+                                        @foreach (var item in workoutBuilder.Paths())
+                                        {
+                                            <path d="@item.Fill" fill="@item.Colour" fill-opacity="1" stroke="none" class="@item.Class"></path>
+                                        }
+                                    </g>
+                                </svg>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div id="graph" style="position:relative">
+                            @if (workoutBuilder is not null)
+                            {
+                                // Alternatively, pass the list and current chunks to `GraphBuilder`, and it
+                                // generates the entire list of paths in a single call... this might also
+                                // avoid potential loss of precision errors, since the offset is currently an
+                                // int, and is being divided by `ScaleFactor` (currently hardcoded as 4)
+                                double AbsoluteOffset = 0;
+                                double Offset = 0;
+                                double Width = 0;
+
+                                @foreach (var chunk in _timelineController.TimelineChunks)
+                                {
+                                    (Offset, Width) = chunk.GetOffsetAndLength(workoutBuilder.Width);
+
+                                    Width /= 4;
+
+                                    <svg style="position: absolute; top: 0; left: @AbsoluteOffset" width="@Width" height="@workoutBuilder.Height" viewBox="0 0 @Width @workoutBuilder.Height">
+                                        <!--<rect width="@Width" height="@workoutBuilder.Height" x="0" y="0" fill="cyan" />-->
+                                        <g>
+                                            @foreach (var item in workoutBuilder.Paths(chunk, true))
+                                            {
+                                                <path d="@item.Fill" fill="@item.Colour" fill-opacity="1" stroke="none" class="@item.Class"></path>
+                                            }
+                                        </g>
+                                    </svg>
+
+                                    AbsoluteOffset += Width;
+                                }
+
+                                (Offset, Width) = _timelineController.CurrentChunk.GetOffsetAndLength(workoutBuilder.Width);
 
                                 Width /= 4;
 
                                 <svg style="position: absolute; top: 0; left: @AbsoluteOffset" width="@Width" height="@workoutBuilder.Height" viewBox="0 0 @Width @workoutBuilder.Height">
-                                    <!--<rect width="@Width" height="@workoutBuilder.Height" x="0" y="0" fill="cyan" />-->
+                                    <!--<rect width="@Width" height="@workoutBuilder.Height" x="0" y="0" fill="yellow"/>-->
                                     <g>
-                                        @foreach (var item in workoutBuilder.Paths(chunk, true))
+                                        @foreach (var item in workoutBuilder.Paths(_timelineController.CurrentChunk, true))
                                         {
                                             <path d="@item.Fill" fill="@item.Colour" fill-opacity="1" stroke="none" class="@item.Class"></path>
                                         }
                                     </g>
                                 </svg>
 
-                                AbsoluteOffset += Width;
+                                double totalWidth = AbsoluteOffset + Width;
+
+                                <input type="range" id="seek-bar" disabled="@(_timelineController.IsPaused is false)" @bind="SeekBarPosition" @bind:after="ChangePositionAsync" min="0" max="@(totalWidth * 4)" style="width:@(totalWidth)px; position: relative; z-index: 1000" />
                             }
+                        </div>
 
-                            (Offset, Width) = _timelineController.CurrentChunk.GetOffsetAndLength(workoutBuilder.Width);
-
-                            Width /= 4;
-
-                            <svg style="position: absolute; top: 0; left: @AbsoluteOffset" width="@Width" height="@workoutBuilder.Height" viewBox="0 0 @Width @workoutBuilder.Height">
-                                <!--<rect width="@Width" height="@workoutBuilder.Height" x="0" y="0" fill="yellow"/>-->
-                                <g>
-                                    @foreach (var item in workoutBuilder.Paths(_timelineController.CurrentChunk, true))
-                                    {
-                                        <path d="@item.Fill" fill="@item.Colour" fill-opacity="1" stroke="none" class="@item.Class"></path>
-                                    }
-                                </g>
+                        <div id="hr-graph">
+                            <svg width="@heartRateGraph.Width" height="@heartRateGraph.Height" viewBox="0 0 @heartRateGraph.Width @heartRateGraph.Height">
+                                <path d="@heartRateGraph.Path" fill="none" stroke="@heartRateGraph.Colour"></path>
                             </svg>
-                        }
-                    </div>
-
-                    <div id="hr-graph">
-                        <svg width="@heartRateGraph.Width" height="@heartRateGraph.Height" viewBox="0 0 @heartRateGraph.Width @heartRateGraph.Height">
-                            <path d="@heartRateGraph.Path" fill="none" stroke="@heartRateGraph.Colour"></path>
-                        </svg>
-                    </div>
-                    <div id="power-graph">
-                        <svg width="@powerGraph.Width" height="@powerGraph.Height" viewBox="0 0 @powerGraph.Width @powerGraph.Height">
-                            <path d="@powerGraph.Path" fill="none" stroke="@powerGraph.Colour"></path>
-                        </svg>
-                    </div>
-                }
-                <div id="elapsed-time">@FormatTimeSpan(_timelineController.TotalTime)</div>
-                <div id="track-remaining-time"><div>@FormatTimeSpan(trackRemainingTime)</div></div>
-                <div id="total-remaining-time">@FormatTimeSpan(workoutRemainingTime)</div>
-            </div>
+                        </div>
+                        <div id="power-graph">
+                            <svg width="@powerGraph.Width" height="@powerGraph.Height" viewBox="0 0 @powerGraph.Width @powerGraph.Height">
+                                <path d="@powerGraph.Path" fill="none" stroke="@powerGraph.Colour"></path>
+                            </svg>
+                        </div>
+                    }
+                    <div id="elapsed-time">@FormatTimeSpan(_timelineController.TotalTime)</div>
+                    <div id="track-remaining-time"><div>@FormatTimeSpan(trackRemainingTime)</div></div>
+                    <div id="total-remaining-time">@FormatTimeSpan(workoutRemainingTime)</div>
+                </div>
             }
         }
         else
@@ -270,6 +275,7 @@
             @if (_timelineController.IsPaused)
             {
                 <div id="paused"></div>
+                <input type="range" id="seek-bar" class="plain" @bind="SeekBarPosition" @bind:after="ChangePositionAsync" min="0" max="@(TotalWorkoutLength / 1000)" style="grid-row: 2; grid-column: 1 / 7; z-index:1000" />
             }
 
             <div id="elapsed-time">@FormatTimeSpan(_timelineController.TotalTime)</div>
@@ -377,6 +383,8 @@
     double percentComplete = 0;
 
     Models.ContentLibrary.Content ContentItem = null!;
+
+    int TotalWorkoutLength = 0;
 
     private string ColorDiff(int currentTarget, int actualValue, int safeValue)
     {
@@ -605,12 +613,23 @@
             }
 
             await video.SetSrcAsync($"/videos/{ContentItem.VideoId}.mp4");
+
+            var readyState = await video.GetReadyStateAsync();
+
+            do
+            {
+                Console.WriteLine($"Video doesn't enough data yet: {readyState}");
+            } while ((readyState = await video.GetReadyStateAsync()) != Blazored.Video.Support.ReadyState.HAVE_ENOUGH_DATA);
+
+            TotalWorkoutLength = (int)(await video.GetDurationAsync() * 1000);
+
+            Console.WriteLine($"Have total workout length (from video): {TimeSpan.FromSeconds(TotalWorkoutLength)}");
         } catch (Exception setSrcException)
         {
             Logger.LogError($"Unable to set source: {setSrcException.Message}");
             Logger.LogError($"@video = {video}");
 
-            throw setSrcException;
+            throw;
         }
     }
 
@@ -665,6 +684,11 @@
 
             workoutType = WorkoutType.NoTargets;
         }
+
+        var totalWorkoutLength = workoutJson.SelectMany(root => root.Tracks.Select(track => track.Size)).Sum();
+
+        if (totalWorkoutLength > 0)
+            TotalWorkoutLength = totalWorkoutLength;
 
         // Just testing this out, want to do a few other tests with BLE and various pairing states
         //await BluetoothHandler.ForgetAsync();
@@ -747,44 +771,16 @@
 
                 try
                 {
-                    // RIGHT: This doesn't work on novids...
-                    //double videoTime = await video.GetCurrentTimeAsync();
-                    // AND: this doesn't work, because we need to know where in the video/content
-                    // we are... how else can this be figured out?
-                    //double videoTime = _timelineController.TotalTime.TotalSeconds;
-
-                    // Currently, `TimelineController` doesn't update the timer... so
-                    // let's do that here from the video time (which is in seconds)
-                    //_timelineController.UpdateIndex(videoTime);
                     _timelineController.Tick();
 
                     int currentPosition = _timelineController.CurrentMilliseconds;
 
-                    //SeekBarPosition = _timelineController.CurrentIndex;
                     if (_timelineController.IsPaused)
                     {
-                        // Hide the (possibly) amalgamated graph, show the original graph, potentially hide the
-                        // heart rate & power graphs as well, as probably nonsense to show them?
-
-                        // Also, update the seek bar position to be relative to the whole workout... how do we get that? I suppose
-                        // from `TimelineChunks`?
-                        // Unhide cursor, potentially show a (large) pause symbol on screen?
-                        //Console.WriteLine($"Workout is paused: current index: {_timelineController.CurrentIndex}");
-
                         SeekBarPosition = _timelineController.CurrentIndex;
                     }
                     else
                     {
-                        // Show the (possibly) amalgamated graph, show HR & power graphs, hide the cursor, update the
-                        // seek bar position to total time / workoutBuilder.ScaleFactor...
-                        //Console.WriteLine($"Workout is playing: total seconds: {(int)_timelineController.TotalTime.TotalSeconds}");
-
-                        var previousChunksTotal = _timelineController.TimelineChunks.Sum(r => r.GetOffsetAndLength(workoutBuilder.Width).Length);
-                        //Console.WriteLine($"Previous Chunks Total Length: {previousChunksTotal}");
-
-                        // And then add `CurrentIndex` to that? seems like that might be correct...
-                        //Console.WriteLine($"SeekBarPosition = {previousChunksTotal} + {_timelineController.CurrentIndex} = {previousChunksTotal + _timelineController.CurrentIndex}");
-
                         SeekBarPosition = (int)_timelineController.TotalTime.TotalSeconds;
                     }
 
@@ -815,25 +811,16 @@
                             trackRemainingTime = TimeSpan.FromMilliseconds(currentTrack.Value.Track.Size - elapsed).Add(TimeSpan.FromSeconds(1));
                         }
 
-                        // GetDurationAsync() returns a non-integer value, throws exception
-                        //workoutRemainingTime = TimeSpan.FromSeconds(await video.GetDurationAsync() - (int)videoTime);
-                        int workoutTime = workoutJson.SelectMany(root => root.Tracks.Select(track => track.Size)).Sum();
-
-                        if (workoutJson.Count == 0)
+                        if (TotalWorkoutLength > currentPosition)
                         {
-                            workoutTime = (int)(await video.GetDurationAsync() * 1000);
-                        }
-
-                        if (workoutTime > currentPosition)
-                        {
-                            workoutRemainingTime = TimeSpan.FromMilliseconds(workoutTime - currentPosition);
+                            workoutRemainingTime = TimeSpan.FromMilliseconds(TotalWorkoutLength - currentPosition);
                         }
                         else
                         {
                             workoutRemainingTime = TimeSpan.Zero;
                         }
 
-                        percentComplete = ((double)currentPosition * 100) / (double)workoutTime;
+                        percentComplete = ((double)currentPosition * 100) / (double)(TotalWorkoutLength);
                     } catch (Exception exn)
                     {
                         Logger.LogError($"Error trying to update timers: {exn.Message}");
